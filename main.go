@@ -8,7 +8,7 @@ import (
 func main() {
 	server := initWebServer()
 
-	user := web.UserHandler{}
+	user := web.NewUserHandler()
 	user.RegisterRoutes(server)
 
 	err := server.Run(":8080")
