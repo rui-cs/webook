@@ -19,5 +19,8 @@ func main() {
 
 func initWebServer() *gin.Engine {
 	server := gin.Default()
+
+	// todo 添加跨域中间件
+
 	return server
 }
