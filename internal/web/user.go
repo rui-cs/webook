@@ -95,7 +95,28 @@ func (u *UserHandler) SignUp(ctx *gin.Context) {
 }
 
 func (u *UserHandler) Login(ctx *gin.Context) {
-	ctx.String(http.StatusOK, "login")
+	type LoginReq struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	var req LoginReq
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+
+	_, err := u.svc.Login(ctx, req.Email, req.Password) // todo 后续登录态校验需要该user信息
+	if err == service.ErrInvalidUserOrPassword {
+		ctx.String(http.StatusOK, err.Error())
+		return
+	}
+
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	ctx.String(http.StatusOK, "登录成功")
 }
 
 func (u *UserHandler) Profile(ctx *gin.Context) {

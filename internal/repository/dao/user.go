@@ -9,7 +9,10 @@ import (
 	"gorm.io/gorm"
 )
 
-var ErrUserDuplicateEmail = errors.New("邮箱冲突")
+var (
+	ErrUserDuplicateEmail = errors.New("邮箱冲突")
+	ErrUserNotFound       = gorm.ErrRecordNotFound
+)
 
 type UserDAO struct {
 	db *gorm.DB
@@ -33,6 +36,12 @@ func (ud *UserDAO) Insert(ctx context.Context, u User) error {
 	}
 
 	return err
+}
+
+func (ud *UserDAO) FindByEmail(ctx context.Context, email string) (User, error) {
+	var u User
+	err := ud.db.WithContext(ctx).Where("email = ?", email).Find(&u).Error
+	return u, err
 }
 
 // User 直接对应数据库表结构

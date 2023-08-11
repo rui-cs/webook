@@ -2,6 +2,7 @@
 
 **项目目录层级结构**
 
++ web : web 中的handler负责和HTTP有关的内容
 + service : 代表领域服务(domain service)。组合各种repository和domain，偶尔组合别的service，共同完成一个业务功能。
 + repository : 代表领域对象的存储。只代表数据存储，不代表数据库
   + dao : 代表数据库操作
@@ -59,4 +60,13 @@ dao.User 直接映射数据库中的表
 + 同样的文本，加密后的结果不同
 
 bcrypt加密之后无法破解，只能同时比较加密之后的值来确定两者是否相等。
+
+
+
+**实现登录功能**
+
+登录本身分为两部分
+
++ 实现登录功能 (/users/login接口)
++ 登录态校验 (Cookie, Session)
 
