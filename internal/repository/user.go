@@ -7,8 +7,14 @@ import (
 	"github.com/rui-cs/webook/internal/repository/dao"
 )
 
+var ErrUserDuplicateEmail = dao.ErrUserDuplicateEmail
+
 type UserRepository struct {
 	dao *dao.UserDAO
+}
+
+func NewUserRepository(d *dao.UserDAO) *UserRepository {
+	return &UserRepository{dao: d}
 }
 
 func (ur *UserRepository) Create(ctx context.Context, u domain.User) error {

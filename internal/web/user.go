@@ -5,6 +5,8 @@ import (
 
 	regexp "github.com/dlclark/regexp2"
 	"github.com/gin-gonic/gin"
+	"github.com/rui-cs/webook/internal/domain"
+	"github.com/rui-cs/webook/internal/service"
 )
 
 const (
@@ -13,15 +15,17 @@ const (
 )
 
 type UserHandler struct {
+	svc      *service.UserService
 	emailExp *regexp.Regexp
 	passExp  *regexp.Regexp
 }
 
-func NewUserHandler() *UserHandler {
+func NewUserHandler(svc *service.UserService) *UserHandler {
 	emailExp := regexp.MustCompile(emailRegex, regexp.None)
 	passExp := regexp.MustCompile(passRegex, regexp.None)
 
 	return &UserHandler{
+		svc:      svc,
 		emailExp: emailExp,
 		passExp:  passExp,
 	}
@@ -50,7 +54,7 @@ func (u *UserHandler) SignUp(ctx *gin.Context) {
 
 	ok, err := u.emailExp.MatchString(req.Email)
 	if err != nil {
-		ctx.String(http.StatusInternalServerError, "系统错误")
+		ctx.String(http.StatusOK, "系统错误")
 		return
 	}
 
@@ -66,12 +70,24 @@ func (u *UserHandler) SignUp(ctx *gin.Context) {
 
 	ok, err = u.passExp.MatchString(req.Password)
 	if err != nil {
-		ctx.String(http.StatusInternalServerError, "系统错误")
+		ctx.String(http.StatusOK, "系统错误")
 		return
 	}
 
 	if !ok {
 		ctx.String(http.StatusOK, "密码格式错误，密码必须大于8位，包含数字、特殊字符")
+		return
+	}
+
+	if err = u.svc.Signup(ctx, domain.User{
+		Email:    req.Email,
+		Password: req.Password,
+	}); err != nil {
+		if err == service.ErrUserDuplicateEmail {
+			ctx.String(http.StatusOK, "邮箱冲突")
+			return
+		}
+		ctx.String(http.StatusOK, "系统错误")
 		return
 	}
 
