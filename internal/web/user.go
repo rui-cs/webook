@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	regexp "github.com/dlclark/regexp2"
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/rui-cs/webook/internal/domain"
 	"github.com/rui-cs/webook/internal/service"
@@ -38,6 +39,7 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 	ug.POST("/login", u.Login)
 	ug.GET("/profile", u.Profile)
 	ug.POST("/edit", u.Edit)
+	ug.POST("/logout", u.Logout)
 }
 
 func (u *UserHandler) SignUp(ctx *gin.Context) {
@@ -105,7 +107,7 @@ func (u *UserHandler) Login(ctx *gin.Context) {
 		return
 	}
 
-	_, err := u.svc.Login(ctx, req.Email, req.Password) // todo 后续登录态校验需要该user信息
+	user, err := u.svc.Login(ctx, req.Email, req.Password)
 	if err == service.ErrInvalidUserOrPassword {
 		ctx.String(http.StatusOK, err.Error())
 		return
@@ -116,8 +118,17 @@ func (u *UserHandler) Login(ctx *gin.Context) {
 		return
 	}
 
+	s := sessions.Default(ctx)
+	s.Set(userID, int(user.Id))
+	if err = s.Save(); err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
 	ctx.String(http.StatusOK, "登录成功")
 }
+
+const userID = "userID"
 
 func (u *UserHandler) Profile(ctx *gin.Context) {
 	ctx.String(http.StatusOK, "profile")
@@ -125,4 +136,17 @@ func (u *UserHandler) Profile(ctx *gin.Context) {
 
 func (u *UserHandler) Edit(ctx *gin.Context) {
 	ctx.String(http.StatusOK, "edit")
+}
+
+func (u *UserHandler) Logout(ctx *gin.Context) {
+	s := sessions.Default(ctx)
+	s.Options(sessions.Options{MaxAge: -1})
+
+	err := s.Save()
+	if err != nil {
+		ctx.String(http.StatusOK, "登出失败")
+		return
+	}
+
+	ctx.String(http.StatusOK, "登出成功")
 }
