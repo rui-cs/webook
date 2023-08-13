@@ -120,6 +120,8 @@ func (u *UserHandler) Login(ctx *gin.Context) {
 
 	s := sessions.Default(ctx)
 	s.Set(userID, int(user.Id))
+	s.Options(sessions.Options{MaxAge: 60})
+
 	if err = s.Save(); err != nil {
 		ctx.String(http.StatusOK, "系统错误")
 		return

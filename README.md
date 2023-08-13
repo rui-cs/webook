@@ -107,6 +107,55 @@ Cookie名称来源Magic Cookie，含义不透明的数据。
 + Header
 + 查询参数，即 ?sid=XXX
 
+session中的数据存储在 `store` 结构中。（https://github.com/gin-contrib/sessions）
+
+
+
+store选择：
+
++ 单机单实例部署，可选择memstore，基于内存方式实现。
++ 多实例部署，可选择redis。
+
+
+
+redis实现store中需要
+
++ authentication：身份认证
++ encryption：数据加密
+
+信息安全的三个核心概念：authentication，encryption，authorization（授权，即权限控制）
+
+
+
+gin-session中间件的各种类型实现是面向接口编程的。可以自由切换。当你在设计核心系统的时候，或者你打算提供什么功能给用户的时候，一定要问问自己，将来有没有可能需要不同的实现。
+
+
+
+session 刷新
+
+需要在用户持续使用网站时，刷新过期时间。
+
+刷新策略
+
++ 每次访问都刷新：性能差，对redis影响大
++ 快过期的时候刷新：快过期的时候用户没访问无法刷新
++ 固定间隔时间刷新：比如每分钟内第一次访问都刷新
++ 使用长短token
+
+设置session有效期为60s，在登录校验的middleware中，登录校验之后顺手刷新。刷新规则是，如果没有设置过session的update_time 或者当前时间超过update_time 10s，则重置session有效期。
+
+
+
+登录状态保持多久比较好？ 
+
+登录状态保持多久比较好？也就是，一次登录之后，要隔多久才需要继续登录？ 
+
+答案是取决于你的产品经理，也取决于你系统其它方面的安全措施。 
+
+简单来说，就是如果你有别的验证用户身份的机制，那么你就可以让用户长时间不需要登录。
+
+上述60s和10s都可根据实际情况修改。
+
 
 
 ## **/users/profile 和 /users/edit 接口设计**
@@ -125,7 +174,11 @@ Cookie名称来源Magic Cookie，含义不透明的数据。
 
 实现：旧版设计是要从email定位用户，后修改为从session中拿出userID定位用户。按照web-->service-->repository-->dao层次操作数据库即可。
 
-测试结果：截图在test文件夹
+测试结果：截图在test文件
+
+
+
+## JWT
 
 
 
