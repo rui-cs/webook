@@ -1,6 +1,6 @@
 # webook
 
-**项目目录层级结构**
+## **项目目录层级结构**
 
 + web : web 中的handler负责和HTTP有关的内容
 + service : 代表领域服务(domain service)。组合各种repository和domain，偶尔组合别的service，共同完成一个业务功能。
@@ -37,7 +37,7 @@ dao.User 直接映射数据库中的表
 
 
 
-**密码加密**
+## **密码加密**
 
 + service 加密：加密是一个业务概念
 + repository 加密：加密是一个存储概念
@@ -63,7 +63,7 @@ bcrypt加密之后无法破解，只能同时比较加密之后的值来确定�
 
 
 
-**实现登录功能**
+## **实现登录功能**
 
 登录本身分为两部分
 
@@ -109,7 +109,7 @@ Cookie名称来源Magic Cookie，含义不透明的数据。
 
 
 
-**/users/profile 和 /users/edit 接口设计**
+## **/users/profile 和 /users/edit 接口设计**
 
 /users/profile 接口设计
 
@@ -129,7 +129,7 @@ Cookie名称来源Magic Cookie，含义不透明的数据。
 
 
 
-**参考**
+## **参考**
 
 + 主要内容来自大明训练营
 + 图解HTTP 6.7 小节
