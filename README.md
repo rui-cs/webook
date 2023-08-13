@@ -109,9 +109,27 @@ Cookie名称来源Magic Cookie，含义不透明的数据。
 
 
 
+**/users/profile 和 /users/edit 接口设计**
+
+/users/profile 接口设计
+
+返回信息：邮箱，用户名，生日，个人简介
+
+/users/edit 接口设计
+
+可修改用户名、生日、个人简介
+
+需校验生日格式，用户名唯一
+
+返回错误：系统错误 / 用户名重复 / 生日格式错误返回 http code 400 Bad Request
+
+实现：旧版设计是要从email定位用户，后修改为从session中拿出userID定位用户。按照web-->service-->repository-->dao层次操作数据库即可。
+
+测试结果：截图在test文件夹
 
 
-参考
+
+**参考**
 
 + 主要内容来自大明训练营
 + 图解HTTP 6.7 小节

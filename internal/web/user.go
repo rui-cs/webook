@@ -131,11 +131,54 @@ func (u *UserHandler) Login(ctx *gin.Context) {
 const userID = "userID"
 
 func (u *UserHandler) Profile(ctx *gin.Context) {
-	ctx.String(http.StatusOK, "profile")
+	s := sessions.Default(ctx)
+	id := s.Get(userID)
+	_, ok := id.(int)
+	if !ok {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	user, err := u.svc.Profile(ctx, id.(int))
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	ctx.JSON(http.StatusOK, user)
 }
 
 func (u *UserHandler) Edit(ctx *gin.Context) {
-	ctx.String(http.StatusOK, "edit")
+	type EditReq struct {
+		Name     string             `json:"name"`
+		Birthday service.WebookTime `json:"birthday"`
+		Resume   string             `json:"resume"`
+	}
+
+	var req EditReq
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+
+	s := sessions.Default(ctx)
+	id := s.Get(userID)
+	_, ok := id.(int)
+	if !ok {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	err := u.svc.Edit(ctx, id.(int), req.Name, req.Birthday, req.Resume)
+	if err == service.ErrUserDuplicateName {
+		ctx.String(http.StatusOK, "用户名重复")
+		return
+	}
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	ctx.String(http.StatusOK, "修改成功")
 }
 
 func (u *UserHandler) Logout(ctx *gin.Context) {

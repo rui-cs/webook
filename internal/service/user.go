@@ -11,6 +11,7 @@ import (
 
 var (
 	ErrUserDuplicateEmail    = repository.ErrUserDuplicateEmail
+	ErrUserDuplicateName     = repository.ErrUserDuplicateName
 	ErrInvalidUserOrPassword = errors.New("账号或密码错误")
 )
 
@@ -48,4 +49,13 @@ func (svc *UserService) Login(ctx context.Context, email, password string) (doma
 	}
 
 	return user, nil
+}
+func (svc *UserService) Edit(ctx context.Context, id int, name string, birthday WebookTime, resume string) error {
+	tmp, _ := birthday.MarshalJSON()
+
+	return svc.repo.EditByID(ctx, id, name, string(tmp), resume)
+}
+
+func (svc *UserService) Profile(ctx context.Context, id int) (domain.User, error) {
+	return svc.repo.Profile(ctx, id)
 }
