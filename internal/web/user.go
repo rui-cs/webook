@@ -160,6 +160,7 @@ func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, UserClaims{
 		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute))},
 		Uid:              user.Id,
+		UserAgent:        ctx.Request.UserAgent(),
 	})
 	tokenStr, err := token.SignedString([]byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0")) // todo
 	if err != nil {
@@ -174,7 +175,8 @@ func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 // 放入token的数据
 type UserClaims struct {
 	jwt.RegisteredClaims
-	Uid int64
+	Uid       int64
+	UserAgent string
 }
 
 const userID = "userID"
