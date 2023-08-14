@@ -39,6 +39,8 @@ dao.User 直接映射数据库中的表
 
 ## **密码加密**
 
+可以选择在不同的层加密
+
 + service 加密：加密是一个业务概念
 + repository 加密：加密是一个存储概念
 + dao 加密：加密是一个数据库概念
@@ -179,6 +181,104 @@ session 刷新
 
 
 ## JWT
+
+除了使用 gin-session middleware 保持和校验登录态，也可以用JWT(JSON Web Token)。
+
+JWT主要用于身份认证，即登录。
+
+基本原理：通过加密生成一个 token，而后客户端每次访问的时候都带上这个 token。
+
+
+
+JWT 简介 
+
+它由三部分组成： 
+
++ Header：头部，JWT 的元数据，也就是描述这个token 本身的数据，一个 JSON 对象。 
++ Payload：负载，数据内容，一个 JSON 对象。 
++ Signature：签名，根据 header 和 token 生成。
+
+
+
+如何进行接入改造？
+
+使用 JWT 原始 API ：go get github.com/golang-jwt/jwt/v5 
+
+在登录过程中，使用 JWT 也是两步： 
+
++ JWT 加密和解密数据
++ 登录校验
+
+过程：
+
++ 在 Login 接口中，登录成功后生成 JWT token。 
+  + 在 JWT token 中写入数据。 
+  + 把 JWT token 通过 HTTP Response Header `x-jwt-token` 返回。 
+
++ 改造跨域中间件，允许前端访问 `x-jwt-token` 这个响应头。 
+
++ 接入 JWT 登录校验的 Gin middleware。 
+  + 读取 JWT token。 
+  + 验证 JWT token 是否合法。 
+
++ 下发HTTP请求时要携带 JWT token。
++ 从session中获取userID的地方需要改为从JWT中获取userID，如 /users/profile，/users/edit 接口
+
+```mermaid
+sequenceDiagram
+participant A as 前端
+participant B as JWT登录校验
+participant C as Login接口
+participant D as 其他接口
+
+A->>C: 登录
+activate A
+activate C
+C->>C : 生成token
+
+C->>A : x-jwt-token:xx
+deactivate C
+deactivate A
+
+A->>B: x-jwt-token:xx
+activate A
+activate B
+
+
+B->>B : token没问题
+deactivate B
+activate D
+B->>D:  
+D->>D: 
+D->>A: 
+deactivate D
+deactivate A
+```
+
+
+
+
+
+JWT 的优缺点 
+
+和 Session 比起来，优点： 
+
++ 不依赖于第三方存储。 
++ 适合在分布式环境下使用。 
++ 提高性能（因为没有 Redis 访问之类的）。 
+
+缺点： 
+
++ 对加密依赖非常大，比 Session 容易泄密。 
++ 最好不要在 JWT 里面放置敏感信息。
+
+
+
+混用 JWT 和 Session 机制 
+
+前面 JWT 限制了我们不能使用敏感数据，那么你真有类似需求的时候，就可以考虑将数据放在 “Session”里面。 
+
+基本的思路就是：你在 JWT 里面存储你的 userID，然后用 userID 来组成 key，比如说 user.info:123 这种 key，然后用这个 key 去 Redis 里面取数据，也可以考虑使用本地缓存数据。
 
 
 

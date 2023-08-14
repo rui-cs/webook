@@ -2,10 +2,12 @@ package web
 
 import (
 	"net/http"
+	"time"
 
 	regexp "github.com/dlclark/regexp2"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/rui-cs/webook/internal/domain"
 	"github.com/rui-cs/webook/internal/service"
 )
@@ -36,9 +38,12 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 	ug := server.Group("/users")
 
 	ug.POST("/signup", u.SignUp)
-	ug.POST("/login", u.Login)
-	ug.GET("/profile", u.Profile)
-	ug.POST("/edit", u.Edit)
+	//ug.POST("/login", u.Login)
+	ug.POST("/login", u.LoginJWT)
+	//ug.GET("/profile", u.Profile)
+	ug.GET("/profile", u.ProfileJWT)
+	//ug.POST("/edit", u.Edit)
+	ug.POST("/edit", u.EditJWT)
 	ug.POST("/logout", u.Logout)
 }
 
@@ -130,6 +135,48 @@ func (u *UserHandler) Login(ctx *gin.Context) {
 	ctx.String(http.StatusOK, "登录成功")
 }
 
+func (u *UserHandler) LoginJWT(ctx *gin.Context) {
+	type LoginReq struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	var req LoginReq
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+
+	user, err := u.svc.Login(ctx, req.Email, req.Password)
+	if err == service.ErrInvalidUserOrPassword {
+		ctx.String(http.StatusOK, err.Error())
+		return
+	}
+
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, UserClaims{
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute))},
+		Uid:              user.Id,
+	})
+	tokenStr, err := token.SignedString([]byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0")) // todo
+	if err != nil {
+		ctx.String(http.StatusInternalServerError, "系统错误")
+		return
+	}
+
+	ctx.Header("x-jwt-token", tokenStr)
+	ctx.String(http.StatusOK, "登录成功")
+}
+
+// 放入token的数据
+type UserClaims struct {
+	jwt.RegisteredClaims
+	Uid int64
+}
+
 const userID = "userID"
 
 func (u *UserHandler) Profile(ctx *gin.Context) {
@@ -142,6 +189,28 @@ func (u *UserHandler) Profile(ctx *gin.Context) {
 	}
 
 	user, err := u.svc.Profile(ctx, id.(int))
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	ctx.JSON(http.StatusOK, user)
+}
+
+func (u *UserHandler) ProfileJWT(ctx *gin.Context) {
+	c, ok := ctx.Get("claims")
+	if !ok {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	claims, ok := c.(*UserClaims)
+	if !ok {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	user, err := u.svc.Profile(ctx, int(claims.Uid))
 	if err != nil {
 		ctx.String(http.StatusOK, "系统错误")
 		return
@@ -171,6 +240,43 @@ func (u *UserHandler) Edit(ctx *gin.Context) {
 	}
 
 	err := u.svc.Edit(ctx, id.(int), req.Name, req.Birthday, req.Resume)
+	if err == service.ErrUserDuplicateName {
+		ctx.String(http.StatusOK, "用户名重复")
+		return
+	}
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	ctx.String(http.StatusOK, "修改成功")
+}
+
+func (u *UserHandler) EditJWT(ctx *gin.Context) {
+	type EditReq struct {
+		Name     string             `json:"name"`
+		Birthday service.WebookTime `json:"birthday"`
+		Resume   string             `json:"resume"`
+	}
+
+	var req EditReq
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+
+	c, ok := ctx.Get("claims")
+	if !ok {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	claims, ok := c.(*UserClaims)
+	if !ok {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	err := u.svc.Edit(ctx, int(claims.Uid), req.Name, req.Birthday, req.Resume)
 	if err == service.ErrUserDuplicateName {
 		ctx.String(http.StatusOK, "用户名重复")
 		return

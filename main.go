@@ -15,7 +15,11 @@ import (
 
 func main() {
 	db := initDB()
+
 	server := initWebServer()
+	addCORS(server)
+	//addCheckSession(server)
+	addJWTMiddleware(server)
 
 	initUser(server, db)
 
@@ -28,16 +32,27 @@ func main() {
 func initWebServer() *gin.Engine {
 	server := gin.Default()
 
-	// todo 添加跨域中间件
+	return server
+}
 
+func addCORS(server *gin.Engine) { // todo 添加跨域中间件
+
+}
+
+func addCheckSession(server *gin.Engine) {
 	// 中间件验证session
+	// 方式一 : session
 	//c := cookie.NewStore([]byte("secret")) // cookie-based
 	c, _ := redis.NewStore(10, "tcp", "localhost:6379", "", []byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0"), []byte("0Pf2r0wZBpXVXlQNdpwCXN4ncnlnZSc3"))
 	server.Use(sessions.Sessions("ssid", c)) // 提取session
 	l := &middleware.LoginMiddlewareBuilder{}
 	server.Use(l.CheckLogin()) // 执行登录校验
+}
 
-	return server
+func addJWTMiddleware(server *gin.Engine) {
+	// 方式二 : JWT
+	l := middleware.NewLoginJWTMiddlewareBuilder()
+	server.Use(l.IgnorePath("/users/login").IgnorePath("/users/signup").Build())
 }
 
 func initUser(server *gin.Engine, db *gorm.DB) {
