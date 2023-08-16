@@ -37,6 +37,33 @@ dao.User 直接映射数据库中的表
 
 
 
+**gin**
+
+web 框架采用 https://gin-gonic.com/zh-cn/
+
+gin middleware 库： https://github.com/gin-gonic/contrib 使用`Engine.Use`。
+
+
+
+**middleware**
+
+middleware 是 Go 这里用得比较多的说法，在别的语言里面可能叫做 plugin、handler、filter、 interceptor。
+
+```mermaid
+graph LR
+	subgraph middleware
+		D[middleware1]
+		E[middleware2]
+		F[middleware...]
+	end
+	
+ request-->D-->E-->F-->业务逻辑
+```
+
+请求都要经过这些 middleware，所以适合用来解决一些所有业务都关心的东西。比如说里的跨域问题，注册的所有的路由都需要解决。也叫做 AOP(Aspect-Oriented Programming) 解决方案。
+
+
+
 ## **密码加密**
 
 可以选择在不同的层加密
@@ -332,6 +359,142 @@ JWT 的优缺点
 
 + Login接口，在JWTtoken里面带上User-Agent信息。
 + JWT登录校验中间件，在里面比较User-Agent。
+
+
+
+## 跨域问题处理
+
+什么是跨域请求？
+
+协议、域名和端口任意一个不同，都是跨域请求
+
+从postman发送本地请求不会遇到跨域问题，但是从浏览器发送请求就可能会遇到。浏览器有这样一个机制，会自动发送preflight请求。
+
+
+
+CORS middleware (https://github.com/gin-gonic/contrib/tree/master/cors)
+
++ AllowOriginFunc : 哪些来源是允许的。
++ AllowHeader : 业务请求中可以带上的头。 
++ AllowCrendentials : 是否允许带上用户认证信息(比如 cookie)。
++ ExposedHeaders : 允许显示的响应头（这样前端才能拿到）
+
+
+
+/users/login 接口测试跨域问题解决效果
+
+request header 中有
+
+```
+Host: localhost:8080
+Origin: http://localhost:3000
+Referer: http://localhost:3000/
+```
+
+response header 中有
+
+```
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Origin: http://localhost:3000
+Access-Control-Expose-Headers: X-Jwt-Token
+Vary: Origin
+```
+
+
+
+跨域问题要点
+
++ 跨域问题是因为发请求的`协议+域名+端口`和接收请求的`协议+域名+端口`对不上。比如说从 localhost:3000 发到 localhost:8080 上。
++ 解决跨域问题的关键是在 preflight 请求里面告诉浏览器自己愿意接收请求。
++ Gin 提供了解决跨域问题的 middleware，可以直接使用。
++ middleware 是一种机制，可以用来解决一些所有业务都关心的问题，使用 Use 方法来注册middleware
+
+
+
+## Kubernetes 入门
+
+初学记住几个基本概念
+
++ Pod ：实例
++ Service ： 逻辑上的服务
++ Deployment ： 管理Pod
+
+Pod 和 Service 最简单的理解方式：假如说你有一个 Web 应用，部署了三个实例，那么就是一个 Web Service，对应了三个 Pod。
+
+Deployment 最好的理解方式：你跟运维说要保证我的 Web 有三个实例，少了运维就重启一个，多了运维就删除一个，运维就是那个 Deployment。
+
+
+
+```mermaid
+graph LR
+	subgraph pod
+		D[pod0]
+		E[pod1]
+		F[pod2]
+	end
+	
+ service-->pod
+ Deployment-->pod
+```
+
+**配置说明**
+
+k8s文档：https://kubernetes.io/zh-cn/docs/home/
+
+K8s 简单理解就是一个配置驱动的，或者元数据驱动，或者声明式的框架
+
+编写Deployment
+
++ apiVersion
++ spec，可以理解为说明书
+  + replicas
+  + selector : 筛选器，在所有的pod中，要管理哪三个pod。可以用matchLabels (根据给出的label值筛选) 和matchExpressions (根据表达式筛选)。
+  + template : 该怎么创建每个pod。Kind不同时template也不同。
+
+编写Service
+
+只有 Deployment 无法从外面访问，需要将 Pod 封装为一个逻辑上的服务，即 Service。
+
++ apiVersion
++ kind
++ metadata
++ spec
+  + type：可选择负载均衡
+  + ports：端口
+
+
+
+**安装**
+
+直接在docker desktop中使用k8s，另外需要安装一个kubectl （设备：macbook）
+
+docker desktop中如果启动k8s一直是starting状态，可能是网络问题无法拉取镜像
+
+记得切换Kubernetes运行上下文至 docker-for-desktop
+
+```
+kubectl config use-context docker-desktop
+```
+
+
+
+**用 Kubernetes 部署 web 服务器**
+
+入门例子：部署三个web服务器实例，需要一个service，一个deployment，三个pod，每个pod是一个实例
+
+```mermaid
+graph LR
+	subgraph pod
+		D[pod0 : webook]
+		E[pod1 : webook]
+		F[pod2 : webook]
+	end
+	
+ /hello-->webook-service-->pod
+```
+
+[链接](https://github.com/rui-cs/go-learning/tree/main/kubernetes)
+
 
 
 

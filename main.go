@@ -1,6 +1,10 @@
 package main
 
 import (
+	"strings"
+	"time"
+
+	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
@@ -17,7 +21,7 @@ func main() {
 	db := initDB()
 
 	server := initWebServer()
-	addCORS(server)
+	addCORSMiddleware(server)
 	//addCheckSession(server)
 	addJWTMiddleware(server)
 
@@ -35,8 +39,17 @@ func initWebServer() *gin.Engine {
 	return server
 }
 
-func addCORS(server *gin.Engine) { // todo 添加跨域中间件
-
+func addCORSMiddleware(server *gin.Engine) {
+	server.Use(cors.New(cors.Config{
+		AllowOriginFunc: func(origin string) bool {
+			return strings.HasPrefix(origin, "http://localhost")
+		},
+		AllowMethods:     []string{"POST", "GET"},
+		AllowHeaders:     []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+		ExposeHeaders:    []string{"x-jwt-token"},
+		MaxAge:           12 * time.Hour,
+	}))
 }
 
 func addCheckSession(server *gin.Engine) {
