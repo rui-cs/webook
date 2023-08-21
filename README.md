@@ -413,6 +413,10 @@ Vary: Origin
 
 ## Kubernetes 入门
 
+[示例](https://github.com/rui-cs/go-learning/tree/main/kubernetes)
+
+
+
 初学记住几个基本概念
 
 + Pod ：实例
@@ -462,6 +466,8 @@ K8s 简单理解就是一个配置驱动的，或者元数据驱动，或者声�
   + type：可选择负载均衡
   + ports：端口
 
+goland有k8s的插件，编写配置文件很方便
+
 
 
 **安装**
@@ -472,8 +478,17 @@ docker desktop中如果启动k8s一直是starting状态，可能是网络问题�
 
 记得切换Kubernetes运行上下文至 docker-for-desktop
 
-```
+```shell
+# 切换
 kubectl config use-context docker-desktop
+
+# 查看
+kubectl get node
+NAME             STATUS   ROLES           AGE   VERSION
+docker-desktop   Ready    control-plane   70m   v1.27.2
+
+# 查看
+kubectl describe node docker-desktop
 ```
 
 
@@ -493,7 +508,178 @@ graph LR
  /hello-->webook-service-->pod
 ```
 
-[链接](https://github.com/rui-cs/go-learning/tree/main/kubernetes)
+
+
+**用 Kubernetes 部署 Redis**
+
+仅部署单机版redis，不考虑持久化问题。
+
+port、nodePort 和 targetPort 的含义
+
++ port : 是指 Service 本身的，比如在 Redis 里面连接信息用的就是 demo-redis-service:6379
++ nodePort : 是指在 K8s 集群之外访问的端口，比如说执行 redis-cli -p 30379
++ targetPort : 是指 Pod 上暴露的端口
+
+<img src="./pic/k8s三种Port.jpg" alt="k8s三种Port" style="zoom:30%;" />
+
+
+
+
+
+**用 Kubernetes 部署 MySQL**
+
+部署MySQL与前面部署web服务器和redis不同的一点是，其需要数据持久化。
+
+在 K8s 里面，存储空间被抽象为 PersistentVolume(持久化卷)。
+
+如何理解 PersistentVolume？
+
++ 作为 K8s 的设计者，不知道容器里面运行的会是什么东西，需要怎么存储，管不了。
++ 从现实中来看，有各种设备用于存储数据，比如说机械硬盘、SSD，又比如说各种封装、各种文件协议，也管不了。 
+
+最终你只能考虑提供一个抽象，让具体的实现去管了。
+
+
+
+在已有service yaml和deployment yaml基础之上，分三步走：
+
++ Deployment yaml文件中加template
+
+  在 template 里面，关键是 `spec.containers.volumeMounts` 和 `volumes`。
+
+  +  `spec.containers.volumeMounts` 含义是挂载到容器的哪个地方
+  +  `volumes` ：含义是这里挂载的东西究竟是什么
+
+  ```yaml
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: webook-mysql
+    template:
+      metadata:
+        name: webook-mysql
+        labels:
+          app: webook-mysql
+      spec:
+        containers:
+          - name: webook-mysql
+            image: mysql:8.0
+            imagePullPolicy: IfNotPresent
+            env:
+              - name: MYSQL_ROOT_PASSWORD
+                value: root
+            volumeMounts:
+                # 与 mysql 的数据存储位置对应
+              - mountPath: /var/lib/mysql
+                # 确定具体用pod中的哪个 volume
+                name: mysql-storage
+            ports:
+              - containerPort: 3306
+        restartPolicy: Always
+        #  POD 中有哪些volume
+        volumes:
+          - name: mysql-storage
+            persistentVolumeClaim:
+              claimName: webook-mysql-claim
+  ```
+
+  上面的配置中，含义是在 MySQL 里面挂载一 个目录 `/var/lib/mysql`。当容器读写这个目录的时候，实际上读写的是 `mysql-storage`。
+
+  而 `mysql-storage` 究竟是什么，被一个叫做 `webook-mysql-claim` 的东西声明了。
+
++ 加PersistentVolumeClaim yaml文件
+
+  一个容器需要什么存储资源，是通过 PersistentVolumeClaim 来声明的。
+
+  比如说，我现在是 MySQL，我就需要告诉 K8s 我需要一些什么资源。K8s 就会为我找到对应的资源。
+
++ 加PersistentVolume yaml文件
+
+  持久化卷，表达我是一个什么样的存储结构。
+
+  所以，PersistentVolume 是存储本身说我有什么特性，而 PersistentVolumeClaim 是用的人告诉 K8s 说他需要什么特性。
+
+  + storageClass : PersistentVolumeClaim 和 PersistentVolume 的yaml文件中的 storageClassName 要能对上
+
+  + accessMode：访问模式。设想，如果你设计一个存储的东西，你是不是要考虑，我这个东西是只读还是只写？是允许 一个人访问，还是允许很多人访问？这就是由 accessMode 来控制的。
+
+    在 PersistentVolume 里面，accessMode 是说明这个 PV 支持什么访问模式。
+
+    在 PersistentVolumeClaim 里面，accessMode 是说明这个 PVC 需要怎么访问。
+
+    accessMode有以下选项：
+
+    + ReadWriteOnce : 只能被挂在到一个 Pod，被它读写。
+    + ReadOnlyMany : 可以被多个 Pod 挂载，但是只能读。
+    + ReadWriteMany : 可以被多个 Pod 挂载，它们都能读写。
+
+
+
+![pv和pvc](./pic/pv和pvc.jpg)
+
+
+
+**用 Kubernetes 部署 Nginx**
+
+什么是Ingress？
+
+用一句话来说，Ingress 代表路由规则。前端发过来的各种请求，在经过 Ingress 之后会转发到特定 的 Service 上。和 Service 中的 LoadBalancer 比起来，Service 强调的是将流量转发到 Pod 上，而 Ingress 强调的是发送到不同的 Service 上。
+
+<img src="./pic/什么是ingress.jpg" alt="什么是ingress" style="zoom:25%;" />
+
+
+
+Ingress 和 Ingress controller
+
+一个 Ingress controller 可以控制住整个集群内部的所有 Ingress(符合条件的 Ingress)。
+
+或者这么说:
+
++ Ingress 是你的配置，配置了一些路由规则
++ Ingress controller 是执行这些配置的，实际执行转发的
+
+站在 K8s 设计者的角度，K8s 只需要一份路由规则说明(Ingress)，至于谁来执行这个路由规则，怎么执行这个路由规则，不关心。
+
+<img src="./pic/Ingress 和 Ingress controller.jpg" alt="Ingress 和 Ingress controller" style="zoom:20%;" />
+
+
+
+**安装 helm 和 ingress-nignx**
+
+安装 helm
+
+https://helm.sh/docs/intro/install/
+
+```shell
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
+```
+
+也可以直接下载安装包
+
+使用 helm 安装 ingress-nginx，运行
+
+```shell
+helm upgrade --install ingress-nginx ingress-nginx --repo https://kubernetes.github.io/ingress-nginx --namespace ingress-nginx --create-namespace
+```
+
+安装完 ingress-nginx 相当于把nginx安装好了， ingress-nginx相当于ingress controller。
+
+
+
+编写 Ingress 配置文件
+
+关键点
+
++ apiVersion 是一个新的东西，networking.k8s.io/v1，文档里面会告诉你这个值应该是什么。 
++ spec.ingressClassName 需要指定为 nginx，如果用别的 Ingress，也要指定对应的名字。
++ rules : 配置的你的转发规则，基本上就和你平时配置nginx 差不多。
+
+
+
+
 
 
 
