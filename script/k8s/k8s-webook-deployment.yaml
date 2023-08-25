@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webook
+  labels:
+    app: webook
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: webook
+  template:
+    metadata:
+      name: webook
+      labels:
+        app: webook
+    spec:
+      containers:
+        - name: webook
+          # 修改 image
+          image: rui-cs/webook:v0.0.1
+          imagePullPolicy: IfNotPresent
+          # 添加ports
+          ports:
+            - containerPort: 8081
+      restartPolicy: Always
+      

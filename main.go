@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
+	"github.com/rui-cs/webook/config"
 	"github.com/rui-cs/webook/internal/repository"
 	"github.com/rui-cs/webook/internal/repository/dao"
 	"github.com/rui-cs/webook/internal/service"
@@ -22,15 +24,36 @@ func main() {
 
 	server := initWebServer()
 	addCORSMiddleware(server)
-	//addCheckSession(server)
-	addJWTMiddleware(server)
+
+	var loginStatusType = map[int]func(engine *gin.Engine){
+		config.CheckSession: addCheckSessionMiddleware,
+		config.JWT:          addJWTMiddleware,
+	}
+	loginStatusType[config.Config.LoginCheckType](server)
 
 	initUser(server, db)
 
-	err := server.Run(":8080")
+	err := server.Run(fmt.Sprintf(":%s", config.Config.ServerPort))
 	if err != nil {
 		panic(err)
 	}
+}
+
+func initDB() *gorm.DB {
+	dsn := fmt.Sprintf("root:%s@tcp(%s:%s)/webook?charset=utf8&parseTime=True&loc=Local",
+		config.Config.DCfg.Pass, config.Config.DCfg.Addr, config.Config.DCfg.Port)
+
+	db, err := gorm.Open(mysql.Open(dsn))
+	if err != nil {
+		panic(err)
+	}
+
+	err = dao.InitTable(db)
+	if err != nil {
+		panic(err)
+	}
+
+	return db
 }
 
 func initWebServer() *gin.Engine {
@@ -52,18 +75,18 @@ func addCORSMiddleware(server *gin.Engine) {
 	}))
 }
 
-func addCheckSession(server *gin.Engine) {
+// 登录态验证方式一 : session
+func addCheckSessionMiddleware(server *gin.Engine) {
 	// 中间件验证session
-	// 方式一 : session
 	//c := cookie.NewStore([]byte("secret")) // cookie-based
-	c, _ := redis.NewStore(10, "tcp", "localhost:6379", "", []byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0"), []byte("0Pf2r0wZBpXVXlQNdpwCXN4ncnlnZSc3"))
+	c, _ := redis.NewStore(10, "tcp", fmt.Sprintf("%s:%s", config.Config.RCg.Addr, config.Config.RCg.Port), "", []byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0"), []byte("0Pf2r0wZBpXVXlQNdpwCXN4ncnlnZSc3"))
 	server.Use(sessions.Sessions("ssid", c)) // 提取session
 	l := &middleware.LoginMiddlewareBuilder{}
 	server.Use(l.CheckLogin()) // 执行登录校验
 }
 
+// 登录态验证方式二 : JWT
 func addJWTMiddleware(server *gin.Engine) {
-	// 方式二 : JWT
 	l := middleware.NewLoginJWTMiddlewareBuilder()
 	server.Use(l.IgnorePath("/users/login").IgnorePath("/users/signup").Build())
 }
@@ -74,18 +97,4 @@ func initUser(server *gin.Engine, db *gorm.DB) {
 	us := service.NewUserService(ur)
 	c := web.NewUserHandler(us)
 	c.RegisterRoutes(server)
-}
-
-func initDB() *gorm.DB {
-	db, err := gorm.Open(mysql.Open("root:your_password@tcp(localhost:3306)/webook?charset=utf8&parseTime=True&loc=Local"))
-	if err != nil {
-		panic(err)
-	}
-
-	err = dao.InitTable(db)
-	if err != nil {
-		panic(err)
-	}
-
-	return db
 }

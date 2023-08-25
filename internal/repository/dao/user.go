@@ -70,7 +70,7 @@ type User struct {
 
 	Email    string `gorm:"unique"` // 唯一索引 全部用户唯一
 	Password string
-	Name     string `gorm:"unique"`
+	Name     string
 	Birthday string
 	Resume   string `gorm:"type:text"`
 

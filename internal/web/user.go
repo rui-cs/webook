@@ -8,6 +8,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rui-cs/webook/config"
 	"github.com/rui-cs/webook/internal/domain"
 	"github.com/rui-cs/webook/internal/service"
 )
@@ -38,13 +39,22 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 	ug := server.Group("/users")
 
 	ug.POST("/signup", u.SignUp)
-	//ug.POST("/login", u.Login)
-	ug.POST("/login", u.LoginJWT)
-	//ug.GET("/profile", u.Profile)
-	ug.GET("/profile", u.ProfileJWT)
-	//ug.POST("/edit", u.Edit)
-	ug.POST("/edit", u.EditJWT)
 	ug.POST("/logout", u.Logout)
+
+	var routerGroup = map[int]func(){
+		config.CheckSession: func() {
+			ug.POST("/login", u.Login)
+			ug.GET("/profile", u.Profile)
+			ug.POST("/edit", u.Edit)
+		},
+		config.JWT: func() {
+			ug.POST("/login", u.LoginJWT)
+			ug.GET("/profile", u.ProfileJWT)
+			ug.POST("/edit", u.EditJWT)
+		},
+	}
+
+	routerGroup[config.Config.LoginCheckType]()
 }
 
 func (u *UserHandler) SignUp(ctx *gin.Context) {
