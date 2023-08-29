@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/rui-cs/webook/config"
 )
 
 type LoginMiddlewareBuilder struct {
@@ -39,7 +40,7 @@ func (l *LoginMiddlewareBuilder) CheckLogin() gin.HandlerFunc {
 
 		if updateTime == nil || now.Sub(updateTime.(time.Time)) > time.Second*10 {
 			s.Set("update_time", now)
-			s.Options(sessions.Options{MaxAge: 60})
+			s.Options(sessions.Options{MaxAge: 60 * config.Config.ValidTime})
 			err := s.Save()
 			if err != nil {
 				ctx.AbortWithStatus(http.StatusInternalServerError)

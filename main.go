@@ -9,6 +9,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
+	redis2 "github.com/redis/go-redis/v9"
 	"github.com/rui-cs/webook/config"
 	"github.com/rui-cs/webook/internal/repository"
 	"github.com/rui-cs/webook/internal/repository/dao"
@@ -56,6 +57,11 @@ func initDB() *gorm.DB {
 	return db
 }
 
+func initRDB() redis2.Cmdable {
+	client := redis2.NewClient(&redis2.Options{Addr: fmt.Sprintf("%s:%s", config.Config.RCg.Addr, config.Config.RCg.Port)})
+	return client
+}
+
 func initWebServer() *gin.Engine {
 	server := gin.Default()
 
@@ -93,7 +99,12 @@ func addJWTMiddleware(server *gin.Engine) {
 
 func initUser(server *gin.Engine, db *gorm.DB) {
 	ud := dao.NewUserDAO(db)
-	ur := repository.NewUserRepository(ud)
+	ur := repository.NewUserRepositoryWithoutCache(ud)
+
+	//rdb := initRDB()
+	//uc := cache.NewUserCache(rdb)
+	//ur := repository.NewUserRepository(ud, uc)
+
 	us := service.NewUserService(ur)
 	c := web.NewUserHandler(us)
 	c.RegisterRoutes(server)

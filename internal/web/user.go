@@ -200,7 +200,7 @@ func (u *UserHandler) Profile(ctx *gin.Context) {
 		return
 	}
 
-	user, err := u.svc.Profile(ctx, id.(int))
+	user, err := u.svc.Profile(ctx, int64(id.(int)))
 	if err != nil {
 		ctx.String(http.StatusOK, "系统错误")
 		return
@@ -222,7 +222,7 @@ func (u *UserHandler) ProfileJWT(ctx *gin.Context) {
 		return
 	}
 
-	user, err := u.svc.Profile(ctx, int(claims.Uid))
+	user, err := u.svc.Profile(ctx, claims.Uid)
 	if err != nil {
 		ctx.String(http.StatusOK, "系统错误")
 		return

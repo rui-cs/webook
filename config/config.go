@@ -5,6 +5,8 @@ type config struct {
 	DCfg           DBCfg
 	LoginCheckType int
 	ServerPort     string
+
+	ValidTime int // 单位：分钟
 }
 
 const (

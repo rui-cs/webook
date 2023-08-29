@@ -16,10 +16,10 @@ var (
 )
 
 type UserService struct {
-	repo *repository.UserRepository
+	repo repository.UserRepository
 }
 
-func NewUserService(repo *repository.UserRepository) *UserService {
+func NewUserService(repo repository.UserRepository) *UserService {
 	return &UserService{repo: repo}
 }
 
@@ -56,6 +56,6 @@ func (svc *UserService) Edit(ctx context.Context, id int, name string, birthday 
 	return svc.repo.EditByID(ctx, id, name, string(tmp), resume)
 }
 
-func (svc *UserService) Profile(ctx context.Context, id int) (domain.User, error) {
-	return svc.repo.Profile(ctx, id)
+func (svc *UserService) Profile(ctx context.Context, id int64) (domain.User, error) {
+	return svc.repo.FindById(ctx, id)
 }

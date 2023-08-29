@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rui-cs/webook/config"
 	"github.com/rui-cs/webook/internal/web"
 )
 
@@ -63,7 +64,7 @@ func (l *LoginJWTMiddlewareBuilder) Build() gin.HandlerFunc {
 		now := time.Now()
 
 		if claims.ExpiresAt.Sub(now) < time.Second*50 { // 超过10s了
-			claims.ExpiresAt = jwt.NewNumericDate(now.Add(time.Minute))
+			claims.ExpiresAt = jwt.NewNumericDate(now.Add(time.Duration(config.Config.ValidTime) * time.Minute))
 
 			var tokenStr string
 			if tokenStr, err = token.SignedString([]byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0")); err != nil {
