@@ -9,12 +9,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var (
-	ErrCodeSendTooMany        = errors.New("发送验证码太频繁")
-	ErrCodeVerifyTooManyTimes = errors.New("验证次数太多")
-	ErrUnknownForCode         = errors.New("与code相关的异常位置错误")
-)
-
 // 编译器会在编译的时候，把 set_code 的代码放进来这个 luaSetCode 变量里
 //
 //go:embed lua/set_code.lua
@@ -23,16 +17,11 @@ var luaSetCode string
 //go:embed lua/verify_code.lua
 var luaVerifyCode string
 
-type CodeCache interface {
-	Set(ctx context.Context, biz, phone, code string) error
-	Verify(ctx context.Context, biz, phone, inputCode string) (bool, error)
-}
-
 type RedisCodeCache struct {
 	client redis.Cmdable
 }
 
-func NewCodeCache(client redis.Cmdable) CodeCache {
+func NewRedisCodeCache(client redis.Cmdable) CodeCache {
 	return &RedisCodeCache{client: client}
 }
 
