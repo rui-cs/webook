@@ -411,35 +411,13 @@ Vary: Origin
 
 
 
-
-
 ## 压力测试与性能优化
 
-### wrk 介绍
+**压测三个接口**
 
-使用wrk压测接口。
-
-能否用postman压力测试？
-
-**wrk 安装**
-
-+ 可以用apt install wrk或者Mac上brew instal lwrk
-
-+ 源码安装 : 直接源码下载git clone https://github.com/wg/wrk.git 
-
-  而后进去这个 wrk 目录下，执行 make 命令编译。 
-
-  编译之后你会得到一个 wrk 可执行文件，将它加入你的环境变量。
-
-
-
-### 开始压测
-
-压测三个接口
-
-+ 注册 : 写为主的接口
-+ 登录 : 读为主的接口
-+ Profile : 读为主的接口
++ 注册 signup : 写为主的接口
++ 登录 login : 读为主的接口
++ 获取信息 Profile : 读为主的接口
 
 
 
@@ -455,7 +433,17 @@ Vary: Origin
 
 
 
-这里添加一点，项目中需要配置的地方在不同的情况内容是不同的，如压力测试要设置有效期为30分钟，而生产环境可能只有1分钟。配置部分可以利用go build tag 改造代码。
+### 用wrk压测
+
+**wrk 安装**
+
++ 可以用apt install wrk或者Mac上brew install wrk
+
++ 源码安装 : 直接源码下载git clone https://github.com/wg/wrk.git 
+
+  而后进去这个 wrk 目录下，执行 make 命令编译。 
+
+  编译之后你会得到一个 wrk 可执行文件，将它加入你的环境变量。
 
 
 
@@ -464,7 +452,7 @@ Vary: Origin
 在项目根目录下执行
 
 ```shell
-wrk -t1 -d1s -c2 -s ./scripts/wrk/signup.lua http://localhost:8080/users/signup
+wrk -t1 -d1s -c2 -s ./script/wrk/signup.lua http://localhost:8080/users/signup
 # 可换不同的加密算法，测试性能
 ```
 
@@ -473,15 +461,9 @@ wrk -t1 -d1s -c2 -s ./scripts/wrk/signup.lua http://localhost:8080/users/signup
 + -t : 线程数量
 + -d : 持续时间。1s 是一秒， 1m是一分钟
 + -c : 并发数
-+ -s : 后面跟着的是测试的脚本。
++ -s : 后面跟着的是测试的脚本
 
 最终能跑多少，和运行环境有关。
-
-测试结果
-
-```
-
-```
 
 
 
@@ -495,12 +477,6 @@ wrk -t1 -d1s -c2 -s ./scripts/wrk/login.lua http://localhost:8080/users/login
 
 因为登录接口也需要比较密码，所以同样可以考虑换加密算法。
 
-测试结果
-
-```
-
-```
-
 
 
 **压测 Profile 接口**
@@ -510,12 +486,6 @@ wrk -t1 -d1s -c2 -s ./scripts/wrk/login.lua http://localhost:8080/users/login
 ```shell
 # 修改脚本中 User-Agent 和 对应的 Authorization
 wrk -t1 -d1s -c2 -s ./scripts/wrk/profile.lua http://localhost:8080/users/profile
-```
-
-测试结果
-
-```
-
 ```
 
 
@@ -535,7 +505,7 @@ wrk -t1 -d1s -c2 -s ./scripts/wrk/profile.lua http://localhost:8080/users/profil
 + 加密算法，耗费CPU，会令CPU成为瓶颈
 + 数据库查询
 
-考虑引入 Redis 来优化第二点性能。用户会先从 Redis 里面查询，而后在缓存未命中的情况下，就会直接从数据库中查询。
+考虑引入 Redis 来优化第二点性能。优化profile接口，用户会先从 Redis 里面查询，而后在缓存未命中的情况下，就会直接从数据库中查询。
 
 ```mermaid
 sequenceDiagram
@@ -576,6 +546,31 @@ deactivate A
 
 这里是这样设计和实现的：
 
+```go
+func (ur *CachedUserRepository) FindById(ctx context.Context, id int64) (domain.User, error) {
+	u, err := ur.cache.Get(ctx, id)
+	if err == nil { // 缓存中找到了
+		return u, nil
+	}
+
+	user, err := ur.dao.FindByID(ctx, id)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	u = ur.entityToDomain(user)
+
+	go func() {
+		err = ur.cache.Set(ctx, u)
+		if err != nil {
+			fmt.Println("ur.cache.Set error : ", err)
+		}
+	}()
+
+	return u, nil
+}
+```
+
 
 
 ### 优化并压测
@@ -598,8 +593,6 @@ deactivate A
 
 
 
-
-
 **登录要不要利用 Redis 来优化性能?**
 
 前面只是使用缓存优化了 /users/profile 的性能， 那么登录需不需要呢?
@@ -616,7 +609,11 @@ deactivate A
 
 **优化后的压力测试结果**
 
+由于不会写lua......我改成Apifox了......测试结果在[test文件夹](https://github.com/rui-cs/webook/tree/main/test/%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95)
 
+
+
+由于笔记本资源有限，users表插入了1w条数据，10个线程每个线程跑1000次profile接口，优化前平均接口耗时13毫秒，接入redis后平均接口耗时4毫秒。
 
 
 
@@ -672,7 +669,7 @@ Redis 数据结构主要有:
 
 
 
-参考竞品 
+**参考竞品** 
 
 以我们这个验证码登录功能为例，你可以看不同公司的验证码登录的实现。 而后你就需要总结他们的功能特性： 
 
@@ -685,7 +682,7 @@ Redis 数据结构主要有:
 
 
 
-从功能和非功能的角度分析 
+**从功能和非功能的角度分析** 
 
 在功能上，整个需求可以简单描述为： 
 
@@ -701,11 +698,11 @@ Redis 数据结构主要有:
 发送验证码流程
 
 ```mermaid
-flowchart TD
+flowchart LR
     A[Start] --> F[发送验证码]
     F --> B{一分钟内有没有发过?}
     B -->|Yes| C[提示稍后重试]
-    C --> E
+    C --> E[End]
     B ---->|No| D[发送验证码]
     D--> E
 ```
@@ -713,7 +710,7 @@ flowchart TD
 登录流程
 
 ```mermaid
-flowchart TD
+flowchart LR
     A[Start] --> F[提交验证码]
     F --> B{验证通过?}
     B -->|Yes| C{是否是新用户?}
@@ -865,6 +862,659 @@ appId 和 signName 你一样需要替换成自己的。
 tplId 也要换成自己的。
 
 
+
+### 验证码服务
+
+深入分析验证码的安全问题 
+
+验证码一般都是 6 位数字，那么要深入考虑两个安全问题： 
+
+1. 控制住验证码发送频率，不至于一下子发送几百万条。 
+
+   + 同一个手机号码，一分钟以内只能发送一次。 
+
+   + 验证码有效期十分钟。 
+
+   + 本身整个系统也有限流，也可以保护住系统。 
+
+2. 验证码不能被攻击者暴力破解，因为验证码只有 6 位，也就是只有十万种可能，所以不能让用户频繁输入验证码来暴力破解。 
+   + 一个验证码，如果已经验证通过了，那么就不能再用。 
+   + 一个验证码，如果已经三次验证失败，那么这个验证码就不再可用。在这种情况下，只会告诉用户输入的验证码不对，但是不会提示验证码过于频繁失败问题。 
+
+注意：这个是业务复杂度，不是技术复杂度，理论上这些规则都是产品经理要告诉你的。你不需要仔细琢磨这些规则，因为你出去工作，换一个业务场景，这些全部用不上。
+
+
+
+验证码服务接口抽象 
+
+验证码你很容易想到，它就只有两个接口： 
+
++ 根据业务、手机号码，发送验证码。在这个接口里面，要控制住发送频率。 
+
++ 验证验证码，在这个接口你要保证验证码不会被暴力破解。 
+
+所以这时候我们会在 service 包里面放一个CodeService，里面定义两个方法：Send 和 Verify。
+
+
+
+#### Redis 实现
+
+发送验证码 
+
+验证码是一个有有效期的东西，所以最适合的存储就是 Redis， 并且设置过期时间十分钟。 
+
+可以将 Redis 的 key 设置为 phone_code:\$biz:$phone 的形态。 
+
+为了进一步避免恶意发送短信，我们需要控制住发短信的频率。 
+
+因此整个思路是： 
+
++ 如果 Redis 中没有这个 key，那么就直接发送； 
++ 如果 Redis 中有这个 key，但是没有过期时间，说明系统异常； 
++ 如果 key 有过期时间，但是过期时间还有 9 分钟，发送太频繁， 拒绝； 
+
++ 否则，重新发送一个验证码。
+
+
+
+怎么实现呢？ 
+
+并发场景分析 
+
+这种并发属于**业务层面上、分布式环境下的并发**，而不是语言层面上的并发，所以不能使用 channel 或者 sync.Lock 来解决。 
+
+右图就是一个典型的多发了验证码的场景。 
+
+在平时编程中，但凡涉及到了**检查数据-做某事**的场景，都要考虑并发安全问题。
+
+
+
+怎么办？ 
+
+所以，我们要考虑的就是在 Redis 层面上实现。 利用 lua 脚本将我们的检查并且做某事的逻辑 
+
+封装成一个整体操作。 
+
+为什么 Redis 是安全的？ 
+
+因为 Redis 是单线程的。 
+
+显然，Redis 是发不了验证码的，所以事实上，我们就是在 Redis 里面存验证码存好了，就认为可以发送出去了。
+
+
+
+SendCode 实现 
+
+调用链路如图。你应该注意到，基本上业务逻辑都在 lua 脚本。Send 方法真的要做的事情也就是调用了 sms 来真的发送验证码。
+
+
+
+```mermaid
+sequenceDiagram
+participant A as CodeService
+participant B as CodeRepository
+participant C as CodeCache
+participant D as Redis
+participant E as SmsService
+
+
+A->>A: 生成验证码
+A->>B: 存储验证码
+activate A
+activate B
+B->>C : 存储验证码
+activate C
+C->>D : 执行lua脚本
+activate D
+D->>D : 检查验证码并存储
+D->>C : OK
+deactivate D
+C->>B : OK
+deactivate C
+B->>A: OK
+deactivate B
+deactivate A
+
+
+A->>E: 发送验证码
+activate A
+activate E
+E->>A: OK
+deactivate E
+deactivate A
+```
+
+
+
+验证验证码 
+
+验证验证码的流程是： 
+
++ 查询验证码，如果验证码不存在，说明还没发； 
++ 验证码存在，验证次数少于等于 3 次，比较输入的验证码和预期的验证码是否相等； 
+
++ 验证码存在，验证次数大于 3 次，直接返回不相等。 
+
+所以你也可以看出来，为什么在发送验证码的时候，我们要额外存储一个 cnt 字段。 
+
+类似地，验证验证码也要小心并发问题，所以用 lua 脚本来封装逻辑。
+
+
+
+Verify 实现 
+
+CodeService.Verify 极其简单。基本上所有的逻辑都在 lua 脚本里面完成了。
+
+```mermaid
+sequenceDiagram
+participant A as CodeService
+participant B as CodeRepository
+participant C as CodeCache
+participant D as Redis
+
+
+
+A->>B: Verify
+activate A
+activate B
+B->>C :Verify
+activate C
+C->>D : 执行lua脚本
+activate D
+D->>C : OK
+deactivate D
+C->>B : OK
+deactivate C
+B->>A: OK
+deactivate B
+deactivate A
+```
+
+
+
+
+
+深入讨论：业务逻辑放在哪里合适？ 
+
+按照 DDD 的理论，或者按照一般的业务开发的理论来说，前面放在 lua 脚本的逻辑应该是放在 CodeService 上的。 
+
+也就是说 CodeService 来负责检测，CodeService 来负责校验，并且保证使用安全，系统安全。 
+
+然而，CodeService 在这里并不好做，因为它难以解决并发问题。 
+
+因此我们放到了 Redis 里面。缺点是，但凡你换一个缓存，比如 memcache，就得重新写一遍这个逻辑。
+
+
+
+深入讨论：验证码发送渠道抽象 
+
+事实上我们这里还欠缺一个更加通用的抽象，就是发送渠道的抽象。 
+
++ 你可能是短信发送验证码。 
++ 你也可能是邮件发送验证码。 
++ 你还可能是语音拨号告知验证码。 
++ 其它第三方平台…… 
+
+不过，这些发送渠道你都可以在将来真正有需要的时候再抽象出来，并且提供实现。
+
+
+
+
+
+#### 内存实现
+
+代码：webook/internal/repository/cache/codecache_memory.go
+
+实现 CodeCache interface 中的 Set 和 Verify 方法。
+
+要求：保证单机并发安全。
+
+Set 方法存储传入的验证码，Verify方法验证传入的验证码。
+
+
+
+内存缓存在验证码业务场景下需具备以下能力：
+
++ 设置过期时间
++ 线程安全，单机并发安全
++ 高性能更佳
+
+
+
+先找了下go中已有的内存缓存实现：
+
++ go-cache  线程安全，适用于单机，支持持久化到文件 [官网](https://patrickmn.com/projects/go-cache/) [github(star 7.4k)](https://github.com/patrickmn/go-cache) [例子](https://mp.weixin.qq.com/s/f4FAt-RgraOFXSfZmWjeoQ) [doc](https://pkg.go.dev/github.com/patrickmn/go-cache) 比较早的库，最近的更新是4年前
++ freecache [github(star 4.7k)](https://github.com/coocood/freecache) 有严格内存限制，有benchmark结果，不支持持久化到文件
++ ristretto [github(star 4.9k)](https://github.com/dgraph-io/ristretto) 性能对比：bigcache、freecache、fastcache、goburrow、groupcache
++ bigcache [github(star 6.7k)](https://github.com/allegro/bigcache)，无法设置单条过期时间，性能对比： [freecache](https://github.com/coocood/freecache) and map
++ go-zero cache [官网](https://go-zero.dev/docs/tasks/memory-cache) 单独使用较少，主要是结合go-zero生态使用
++ groupcache [github](https://github.com/golang/groupcache) [Presentations](https://go.dev/talks/2013/oscon-dl.slide#27) [例子](https://marksuper.xyz/2022/08/26/groupcache/) 分布式缓存，使用起来较复杂，功能上只增加不删改
++ fastcache [github](https://github.com/VictoriaMetrics/fastcache) 不支持过期时间
+
+(标明的star数量截止日期为2023-09-03)
+
+go-cache、freecache、ristretto 三个库符合需求，任选一个即可，在这里选择了ristretto库，支持单机并发安全。
+
+
+
+测试结果见[test文件夹](https://github.com/rui-cs/webook/tree/main/test/%E9%AA%8C%E8%AF%81%E7%A0%81%E6%9C%8D%E5%8A%A1%E5%86%85%E5%AD%98%E5%AE%9E%E7%8E%B0)。
+
+
+
+### 用户验证码登录
+
+验证码登录接口 
+
+整体来说，我们需要两个 HTTP 接口： 
+
++ 触发发送验证码的接口。 
++ 校验验证码的接口。 
+
+我都定义到了 UserHandler 里面。也就是 UserHandler 通过聚合 CodeService 来实现验证码登录。
+
+```mermaid
+sequenceDiagram
+participant A as 浏览器
+participant B as UserHandler
+participant C as UserService
+participant D as CodeService
+
+
+
+A->>B: 发送验证码
+activate A
+activate B
+B->>D :发送验证码
+activate D
+B->>D : OK
+deactivate D
+B->>A: OK
+deactivate B
+deactivate A
+
+
+
+A->>B: 验证验证码
+activate A
+activate B
+B->>D :验证验证码
+activate D
+B->>D : OK
+deactivate D
+B->>C:FindOrCreate
+activate C
+C->>B:OK
+deactivate C
+B->>A: OK
+deactivate B
+deactivate A
+```
+
+
+
+发送验证码核心逻辑 
+
+其实就是校验，然后剩下的事情都交给 CodeService。 
+
+最后根据 CodeService 的返回值，返回不同的错误信息。
+
+
+
+验证码登录逻辑 
+
+也很简单，就是调用 CodeService 和 UserService 来实现业务逻辑。
+
+
+
+FindOrCreate 并发问题 
+
+这个也是典型的查找-做某事的场景，所以天然就有不一致的问题。 
+
+比如说两个人都在用同一个手机号码来注册，同时发送验证码，同时校验通过。那么就会同时注册两个用户。 
+
+好在，我们可以在数据库中加一个手机号码的列，并且设置为唯一索引来防止这个问题。
+
+
+
+FindOrCreate 逻辑 
+
+右边是一种兼顾性能的写法，你后面在利用唯一索引的时候可以借鉴类似的思路。 
+
+思路是： 
+
+1. 先查询，如果存在，直接返回。 
+2. 否则，注册一个用户，如果成功，直接返回。 
+3. 否则（此时说明遇到了并发问题），查询用户，返回。 
+
+注意，第三点本身是可以进一步优化安全性的，就是要求用户重新走验证码登录流程，这里没有做。 
+
+毕竟……正常用户走不到第三点。
+
+
+
+唯一索引的问题 
+
+引入手机号码这一个列之后，就会有一个新的问题： 
+
++ 邮箱注册的，没有手机号。 
+
++ 手机号注册的，没有邮箱。 
+
+也就是，对应的值是 NULL。 
+
+那么在 Go 里面，怎么让 ORM 插入一个 NULL 值呢？ 答案就是用 sql.NullXXX 这一家族类。 
+
+你可以使用指针，但是我个人不喜欢用指针，因为要判 nil 。
+
+
+
+为什么在 UserHandler 里面聚合？ 
+
+按照最严格的标准来说，我们其实需要一个 UserAggrService，即用户聚合服务，在这个服务里面完成发送验证码和验证码登录的逻辑。但是我们还没复杂到这个地步，就可以直接用 UserHandler 来聚合。
+
+
+
+如何本地运行？
+
+使用本地的 sms 来实现短信登录服务 
+
+本地运行的话，我提供了一个本地的发消息的实现，在 sms 的子包 localsms 里面。 
+
+你能在控制台看到打印出来的验证码。
+
+
+
+## 依赖注入与 wire
+
+### 依赖注入概念
+
+已有的初始化代码
+
+你仔细看我们的初始化代码，就会发现整体来说可以分成几个步骤：
+
++ 初始化第三方依赖，也就是 DB、Redis 等。
++ 用 DB、Redis 等来初始化 DAO、Cache。
++ 用 DAO、Cache 初始化 Repository。
++ 用 Repository 初始化 Service。
++ 用 Service 初始化 Handler。
++ 初始化 Gin，注册路由。
++ 初始化结束。
+
+整个过程就是层层组装，也是标准的依赖注入写法。
+
+所谓的依赖注入，是指 A 依赖于 B，也就是 A 要调用 B 上的方法，那么 A 在初始化的时候就要求传入一个构建好的 B。
+
+
+
+两种写法对比
+
++ 依赖注入写法：不关心依赖是如何构造的。
+
++ 非依赖注入写法：必须自己初始化依赖，比如说 Repository 需要知道如何初始化 DAO 和 Cache。由此带来的缺点是：
+  + 深度耦合依赖的初始化过程。
+  + 往往需要定义额外的 Config 类型来传递依赖所需的配置信息。
+  + 一旦依赖增加新的配置，或者更改了初始化过程，都要跟着修改。
+  + 缺乏扩展性。
+  + 测试不友好。
+  + 难以复用公共组件，例如 DB 或 Redis 之类的客户端。
+
+
+
+### wire入门
+
+引入依赖注入中间件
+
+依赖注入的缺点就是要在系统初始化的过程中（main函数），完成复杂冗长的构造链表。
+
+所以我们可以借助一些中间件来帮助我们完成这些复杂又没有多少技术含量的事情。
+
+在 Go 里面，我推荐使用 wire。
+
+wire 分成两部分，一个是在项目中使用的依赖，一个是命令行工具。
+
+wire 安装。
+
+```shell
+go install github.com/google/wire/cmd/wire@latest
+```
+
+确保 GOPATH/bin 在你的环境变量 PATH 里面，不然就是 command not found
+
+
+
+wire 简单示例
+
+wire 使用有两个基本步骤：
+
++ 往 wire 里面注册各种初始化方法。
++ 运行 wire 命令。
+
+第一步相当于告诉 wire，我有什么东西，每个东西是怎么初始化的。
+
+第二就是让 wire 完成组装。
+
+
+
+wire 生成代码
+
+可以看到， wire 是利用了代码生成技术。
+
+它会根据你传入的各种构造方法，分析其中的依赖，然后生成一个真正的初始化方法。
+
+注意，wire 本身并不支持单例模式，因此，假如你多次调用 InitDB，那么就会生成多个 gorm.DB。
+
+后面我们会解决这个问题。
+
+
+
+**IoC：控制反转**
+
+依赖注入是控制反转的一种实现形式。
+
+还有一种叫做依赖发现。比如说 A 调用 B，然后 A 自己去找到可用的 B，那就是依赖发现。
+
+简单来说，如果 A 用 B 接口的时候，需要自己创建一个，比如说 UserHandler 里面自己创建一个 UserService 的实现，那么 UserHandler 就和 UserService 的实现耦合在一起了。
+
+控制反转的意思就是，UserHandler 不会去初始化UserService。要么外面传入 UserService 给UserHandler，这种叫做依赖注入；要么是 UserHandler自己去找一个 UserService，这种叫做依赖查找。
+
+
+
+### 使用 wire 改造代码
+
+组装过程
+
+整个过程可以看右图。
+
+关键点：
+
++ DAO、Repository、Service 和 Handler 都已经有构造方法了。
+
++ 需要有一个新的方法，用于准备接入的 Gin HandlerFunc。
+
++ 需要有一个新的方法，初始化对应的 sms.Service。
+
++ 需要有一个新的方法，集成所有的 Handler、Gin HandlerFunc，完成路由注册。
+
+而后在 main 函数里面直接启动就可以。
+
+预期中的 main 函数：main 函数什么事情也不干，就是直接启动。
+
+
+
+**组装 Repository 部分**
+
+这里我们引入了一个新的 ioc 包，用于封装提供依赖的逻辑。
+
+右图中：
+
++ InitRedis 会提供一个 Redis 的客户端。
++ InitDB 会提供一个 gorm.DB。
+
+
+
+**组装 Handler 部分**
+
+目前我们只有一个 Handler，也就是 UserHandler。
+
+ioc.InitSmsService 是用于提供一个 SMS 服务，也就是发送短信的服务。
+
+
+
+**InitSmsService**
+
+wire 有一个缺陷，就是没有办法指定在不同的环境下使用不同的实现，所以这里我们只能直接写死，必要的时候再切换。
+
+
+
+**组装 gin.Engine**
+
+wire 的另外一个缺陷，是不能找到某个类型的所有实例。
+
+也不能找到某个接口的所有实现，所以我们只能手写。
+
+
+
+**GinMiddlewares**
+
+只能写死。
+
+而在类似的 Java 的 Spring 全家桶里面，是不需要自己写的。
+
+
+
+缺点那么多，为啥还要用 wire？
+
+前面提到的 **wire 的缺点**：
+
++ 缺乏根据环境使用不同实现的能力。
++ 缺乏根据接口查找实现的能力。
++ 缺乏根据类型查找所有实例的能力。
+
+这也就导致我们的依赖注入的代码，始终做不到非常清爽。
+
+一句话，wire 也就是矮个子里面挑高个。
+
+wire 最大的好处就是很清晰，可控性非常强
+
+
+
+**已有代码的缺点**
+
+难以避免的修改有两个地方：
+
++ 每次增加一个新的 Handler，都要修改 ioc.InitWebServer。
++ 每次要启用新的 Gin 的 middleware，都要修改 GinMiddlewares。
+
+而后肯定要修改的一个地方是：每次增加新的 DAO、Repository 等，都要修改 wire.go 里面的代码。
+
+不过一句话：再怎么修改，也比直接手写要来得快。
+
+
+
+使用tips：
+
+1. go mod tidy
+2. goland设置构建标记 wireinject
+3. 执行wire
+
+
+
+## 面向接口编程
+
+什么是面向接口编程？
+
+面向接口编程是指将应用程序定义为组件的集合，组件与组件之间的通信必须通过接口。
+
+简单来说，就是如果你要用到另外一个类型，那么你肯定用的是接口。
+
+比如说 A 调用 B 的时候，B 必须是一个接口。
+
+结合依赖注入，就是写代码的时候 A 调用 B，B 是一个接口。而后在初始化的时候，注入一个实现了 B 接口的实例。
+
+
+
+CodeCache 是一个结构体，所以肯定不是面向接口编程。
+
+CodeService 对 sms.Service 的用法就是面向接口编程。
+
+所以你可以注入不同的实现，比如说腾讯云的实现，或者基于内存的实现。
+
+
+
+为什么要面向接口编程？
+
+为了扩展性。
+
+面向接口编程本身并不能提高性能或者可靠性。
+
+但面向接口编程，能够有效让你的代码充满扩展性，正如 sms.Service，你可以随时提供一个基于内存的实现、基于腾讯的实现。
+
+将来你要是想换供应商，你都可以随便换，只需要提供一个实现就可以。
+
+
+
+改造已有的代码
+
+为了方便接下来的测试，我们现在先提前把代码都改造为面向接口编程的形式。
+
+因为缓存和 DAO 位于最底部，也就是它们没有使用别的类型，所以我们从它们开始改造。
+
+
+
+改造 UserCache
+
+这里实现只有一个，叫做 RedisUserCache，意思就是它是基于 Redis 来实现的。
+
+这意味着将来你可以：
+
++ 提供本地缓存实现。
++ 提供 Memcache 实现。
++ 提供本地缓存 + Memcache 双重缓存的实现。
++ 甚至于还可以进一步提供各种缓存模式的实现。
+
+
+
+改造 UserRepository
+
+这里实现只有一个，叫做CachedUserRepository，意思就是使用了缓存的实现。
+
+将来你可以考虑：
+
++ 不使用缓存，或者使用不同的缓存。
++ 甚至不用数据库，使用 NoSQL 啥的。
+
+
+
+改造 UserService
+
+UserService 从理论上来说不太可能有别的实现，但是我们依旧有一个接口。
+
+将来可能是：
+
++ 不同版本有不同实现。
++ 是否 VIP 有不同实现。
+
+不过当下引入接口就是为了测试。
+
+因为实现没有特别之处，所以就直接叫做userService。不是好的命名，但是能用。
+
+
+
+改造 UserHandler
+
+UserHandler 本身并没有引入接口，是因为没有人用它，而且现在也没有看到需要引入不同实现地方，所以暂时保留。
+
+PS：用它，是指调用它的方法。注册路由虽然也算用了，但是可以推迟到将来再来抽取接口。
+
+
+
+结合 wire 使用
+
+在使用 wire 的时候，注意你的初始化方法NewXXX 最好返回接口。
+
+不过 Go 的推荐做法是返回具体类型，这和wire 是冲突的。
+
+这样 wire 可以直接使用类型匹配。
 
 
 
