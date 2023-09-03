@@ -16,4 +16,5 @@ var Config = config{
 	LoginCheckType: JWT,
 	ServerPort:     "8080",
 	ValidTime:      1,
+	GormDebug:      false,
 }

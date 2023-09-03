@@ -16,4 +16,5 @@ var Config = config{
 	LoginCheckType: CheckSession,
 	ServerPort:     "8081",
 	ValidTime:      1,
+	GormDebug:      false,
 }

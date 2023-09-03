@@ -7,6 +7,8 @@ type config struct {
 	ServerPort     string
 
 	ValidTime int // 单位：分钟
+
+	GormDebug bool
 }
 
 const (

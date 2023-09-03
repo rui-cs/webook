@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -19,17 +20,19 @@ const (
 )
 
 type UserHandler struct {
-	svc      *service.UserService
+	svc      service.UserService
+	codeSvc  service.CodeService
 	emailExp *regexp.Regexp
 	passExp  *regexp.Regexp
 }
 
-func NewUserHandler(svc *service.UserService) *UserHandler {
+func NewUserHandler(svc service.UserService, codeSvc service.CodeService) *UserHandler {
 	emailExp := regexp.MustCompile(emailRegex, regexp.None)
 	passExp := regexp.MustCompile(passRegex, regexp.None)
 
 	return &UserHandler{
 		svc:      svc,
+		codeSvc:  codeSvc,
 		emailExp: emailExp,
 		passExp:  passExp,
 	}
@@ -39,22 +42,109 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 	ug := server.Group("/users")
 
 	ug.POST("/signup", u.SignUp)
-	ug.POST("/logout", u.Logout)
+	ug.POST("/login_sms/code/send", u.SendLoginSMSCode)
+	ug.POST("/login_sms", u.LoginSMS)
 
 	var routerGroup = map[int]func(){
 		config.CheckSession: func() {
 			ug.POST("/login", u.Login)
 			ug.GET("/profile", u.Profile)
 			ug.POST("/edit", u.Edit)
+			ug.POST("/logout", u.Logout)
 		},
 		config.JWT: func() {
 			ug.POST("/login", u.LoginJWT)
 			ug.GET("/profile", u.ProfileJWT)
 			ug.POST("/edit", u.EditJWT)
+			ug.POST("/logout", u.LogoutJWT)
 		},
 	}
 
 	routerGroup[config.Config.LoginCheckType]()
+}
+
+const biz = "login"
+
+func (u *UserHandler) SendLoginSMSCode(ctx *gin.Context) {
+	type Req struct {
+		Phone string `json:"phone"`
+	}
+
+	var req Req
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+
+	if req.Phone == "" {
+		ctx.JSON(http.StatusOK, Result{Code: 4, Msg: "输入错误"})
+		return
+	}
+
+	err := u.codeSvc.Send(ctx, biz, req.Phone)
+	switch {
+	case err == nil:
+		ctx.JSON(http.StatusOK, Result{Msg: "发送成功"})
+	case errors.Is(err, service.ErrCodeSendTooMany):
+		ctx.JSON(http.StatusOK, Result{Msg: "发送太频繁，请稍后再试"})
+	default:
+		ctx.JSON(http.StatusOK, Result{Code: 5, Msg: "系统错误"})
+	}
+}
+
+func (u *UserHandler) LoginSMS(ctx *gin.Context) {
+	type Req struct {
+		Phone string `json:"phone"`
+		Code  string `json:"code"`
+	}
+
+	var req Req
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+
+	ok, err := u.codeSvc.Verify(ctx, biz, req.Phone, req.Code)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{Code: 5, Msg: "系统错误"})
+		return
+	}
+
+	if !ok {
+		ctx.JSON(http.StatusOK, Result{Code: 4, Msg: "验证码有误"})
+		return
+	}
+
+	user, err := u.svc.FindOrCreate(ctx, req.Phone)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{Code: 5, Msg: "系统错误"})
+		return
+	}
+
+	if err = u.setJWTToken(ctx, user.Id); err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+
+	ctx.String(http.StatusOK, "登录成功")
+	return
+}
+
+func (u *UserHandler) setJWTToken(ctx *gin.Context, uid int64) error {
+	claims := UserClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute * time.Duration(config.Config.ValidTime)))},
+		Uid:       uid,
+		UserAgent: ctx.Request.UserAgent(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
+	tokenStr, err := token.SignedString([]byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0")) // todo
+	if err != nil {
+		return err
+	}
+
+	ctx.Header("x-jwt-token", tokenStr)
+
+	return nil
 }
 
 func (u *UserHandler) SignUp(ctx *gin.Context) {
@@ -96,11 +186,11 @@ func (u *UserHandler) SignUp(ctx *gin.Context) {
 		return
 	}
 
-	if err = u.svc.Signup(ctx, domain.User{
+	if err = u.svc.SignUp(ctx, domain.User{
 		Email:    req.Email,
 		Password: req.Password,
 	}); err != nil {
-		if err == service.ErrUserDuplicateEmail {
+		if errors.Is(err, service.ErrUserDuplicateEmail) {
 			ctx.String(http.StatusOK, "邮箱冲突")
 			return
 		}
@@ -123,7 +213,7 @@ func (u *UserHandler) Login(ctx *gin.Context) {
 	}
 
 	user, err := u.svc.Login(ctx, req.Email, req.Password)
-	if err == service.ErrInvalidUserOrPassword {
+	if errors.Is(err, service.ErrInvalidUserOrPassword) {
 		ctx.String(http.StatusOK, err.Error())
 		return
 	}
@@ -157,7 +247,7 @@ func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 	}
 
 	user, err := u.svc.Login(ctx, req.Email, req.Password)
-	if err == service.ErrInvalidUserOrPassword {
+	if errors.Is(err, service.ErrInvalidUserOrPassword) {
 		ctx.String(http.StatusOK, err.Error())
 		return
 	}
@@ -167,18 +257,12 @@ func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 		return
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, UserClaims{
-		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute))},
-		Uid:              user.Id,
-		UserAgent:        ctx.Request.UserAgent(),
-	})
-	tokenStr, err := token.SignedString([]byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0")) // todo
+	err = u.setJWTToken(ctx, user.Id)
 	if err != nil {
 		ctx.String(http.StatusInternalServerError, "系统错误")
 		return
 	}
 
-	ctx.Header("x-jwt-token", tokenStr)
 	ctx.String(http.StatusOK, "登录成功")
 }
 
@@ -251,8 +335,8 @@ func (u *UserHandler) Edit(ctx *gin.Context) {
 		return
 	}
 
-	err := u.svc.Edit(ctx, id.(int), req.Name, req.Birthday, req.Resume)
-	if err == service.ErrUserDuplicateName {
+	err := u.svc.Edit(ctx, int64(id.(int)), req.Name, req.Birthday, req.Resume)
+	if errors.Is(err, service.ErrUserDuplicateName) {
 		ctx.String(http.StatusOK, "用户名重复")
 		return
 	}
@@ -288,8 +372,8 @@ func (u *UserHandler) EditJWT(ctx *gin.Context) {
 		return
 	}
 
-	err := u.svc.Edit(ctx, int(claims.Uid), req.Name, req.Birthday, req.Resume)
-	if err == service.ErrUserDuplicateName {
+	err := u.svc.Edit(ctx, claims.Uid, req.Name, req.Birthday, req.Resume)
+	if errors.Is(err, service.ErrUserDuplicateName) {
 		ctx.String(http.StatusOK, "用户名重复")
 		return
 	}
@@ -312,4 +396,8 @@ func (u *UserHandler) Logout(ctx *gin.Context) {
 	}
 
 	ctx.String(http.StatusOK, "登出成功")
+}
+
+func (u *UserHandler) LogoutJWT(ctx *gin.Context) {
+	// todo
 }

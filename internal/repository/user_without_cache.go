@@ -10,10 +10,10 @@ import (
 )
 
 type UserRepositoryWithoutCache struct {
-	dao *dao.UserDAO
+	dao dao.UserDAO
 }
 
-func NewUserRepositoryWithoutCache(d *dao.UserDAO) UserRepository {
+func NewUserRepositoryWithoutCache(d dao.UserDAO) UserRepository {
 	return &UserRepositoryWithoutCache{dao: d}
 }
 
@@ -33,7 +33,7 @@ func (ur *UserRepositoryWithoutCache) FindByEmail(ctx context.Context, email str
 	return domain.User{Id: user.Id, Email: user.Email.String, Password: user.Password}, nil
 }
 
-func (ur *UserRepositoryWithoutCache) EditByID(ctx context.Context, id int, name, birthday, resume string) error {
+func (ur *UserRepositoryWithoutCache) EditByID(ctx context.Context, id int64, name, birthday, resume string) error {
 	return ur.dao.EditByID(ctx, id, name, birthday, resume)
 }
 
@@ -48,10 +48,20 @@ func (ur *UserRepositoryWithoutCache) FindById(ctx context.Context, id int64) (d
 	return u, nil
 }
 
+func (ur *UserRepositoryWithoutCache) FindByPhone(ctx context.Context, phone string) (domain.User, error) {
+	u, err := ur.dao.FindByPhone(ctx, phone)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	return ur.entityToDomain(u), err
+}
+
 func (ur *UserRepositoryWithoutCache) entityToDomain(u dao.User) domain.User {
 	return domain.User{
 		Id:       u.Id,
 		Email:    u.Email.String,
+		Phone:    u.Phone.String,
 		Name:     u.Name.String,
 		Password: u.Password,
 		Birthday: u.Birthday,

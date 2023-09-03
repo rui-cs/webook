@@ -7,8 +7,9 @@ import "time"
 type User struct {
 	Id       int64     `json:"id"`
 	Email    string    `json:"email"`
-	Password string    `json:"-"`
+	Phone    string    `json:"-"`
 	Name     string    `json:"name"`
+	Password string    `json:"-"`
 	Birthday string    `json:"birthday"`
 	Resume   string    `json:"resume"`
 	Ctime    time.Time `json:"-"`
