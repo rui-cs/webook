@@ -20,7 +20,10 @@ func InitWebServer() *gin.Engine {
 		dao.NewUserDAO,
 
 		cache.NewUserCache,
-		cache.NewMemoryCodeCache,
+		//cache.NewRedisCodeCache,
+		cache.NewRedisEncryptCodeCache,
+		//cache.NewMemoryCodeCache,
+		//ioc.InitCache,
 
 		repository.NewUserRepository,
 		repository.NewCodeRepository,
@@ -33,8 +36,6 @@ func InitWebServer() *gin.Engine {
 
 		ioc.InitWebServer,
 		ioc.InitMiddlewares,
-
-		ioc.InitCache,
 	)
 
 	return new(gin.Engine)
