@@ -1101,6 +1101,18 @@ go-cache、freecache、ristretto 三个库符合需求，任选一个即可，�
 
 
 
+#### 验证码加密
+
+使用与密码加密相同的方式BCrypt。
+
+存储时加密，验证时解密。
+
+新增CodeCache实现 `RedisEncryptCodeCache`。没有研究lua加密，所以verify方法没有采用lua脚本。
+
+测试结果在[test文件夹](https://github.com/rui-cs/webook/tree/main/test/%E9%AA%8C%E8%AF%81%E7%A0%81%E5%8A%A0%E5%AF%86)。
+
+
+
 ### 用户验证码登录
 
 验证码登录接口 
