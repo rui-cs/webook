@@ -2,6 +2,7 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -86,6 +87,9 @@ func (u *UserHandler) SendLoginSMSCode(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, Result{Msg: "发送成功"})
 	case errors.Is(err, service.ErrCodeSendTooMany):
 		ctx.JSON(http.StatusOK, Result{Msg: "发送太频繁，请稍后再试"})
+	case errors.Is(err, service.ErrCodeOperationTooMany):
+		fmt.Println("----------------------------------操作太频繁，请稍后再试---------------------------")
+		ctx.JSON(http.StatusOK, Result{Msg: "操作太频繁，请稍后再试"})
 	default:
 		ctx.JSON(http.StatusOK, Result{Code: 5, Msg: "系统错误"})
 	}
@@ -103,6 +107,13 @@ func (u *UserHandler) LoginSMS(ctx *gin.Context) {
 	}
 
 	ok, err := u.codeSvc.Verify(ctx, biz, req.Phone, req.Code)
+
+	if errors.Is(err, service.ErrCodeOperationTooMany) {
+		fmt.Println("----------------------------------操作太频繁，请稍后再试---------------------------")
+		ctx.JSON(http.StatusOK, Result{Msg: "操作太频繁，请稍后再试"})
+		return
+	}
+
 	if err != nil {
 		ctx.JSON(http.StatusOK, Result{Code: 5, Msg: "系统错误"})
 		return

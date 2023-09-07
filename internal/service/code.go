@@ -12,6 +12,7 @@ import (
 var (
 	ErrCodeVerifyTooManyTimes = repository.ErrCodeVerifyTooManyTimes
 	ErrCodeSendTooMany        = repository.ErrCodeSendTooMany
+	ErrCodeOperationTooMany   = repository.ErrCodeOperationTooMany
 )
 
 type CodeService interface {

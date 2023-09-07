@@ -9,6 +9,7 @@ import (
 var (
 	ErrCodeSendTooMany        = cache.ErrCodeSendTooMany
 	ErrCodeVerifyTooManyTimes = cache.ErrCodeVerifyTooManyTimes
+	ErrCodeOperationTooMany   = cache.ErrCodeOperationTooMany
 )
 
 type CodeRepository interface {
