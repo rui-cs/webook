@@ -125,6 +125,7 @@ func (u *UserHandler) LoginSMS(ctx *gin.Context) {
 	}
 
 	ctx.String(http.StatusOK, "登录成功")
+
 	return
 }
 
