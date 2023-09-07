@@ -1107,9 +1107,9 @@ go-cache、freecache、ristretto 三个库符合需求，任选一个即可，�
 
 选型并发map https://github.com/orcaman/concurrent-map，用这个map存储正在操作的cache key，对Set和Verify方法不需要两个map，正常业务上Set和Verify不会同时进行。
 
-执行Set和Verify业务流程之前要确认map中是否有本次要操作的key，若有则返回错误（操作频繁，请稍后再试），如没有则将该key加入map，这个过程要加锁。即`MemoryCodeCache.getLock`。
+执行Set和Verify业务流程之前要确认map中是否有本次要操作的key，若有则返回错误（操作频繁，请稍后再试），如没有则将该key加入map，使用API  `SetIfAbsent` 可以不加 `sync.Mutex` 锁。即`MemoryCodeCache.getLockByKey`。
 
-使用完了记得释放。即`MemoryCodeCache.releaseLock`。
+使用完了记得释放。即`MemoryCodeCache.releaseLockByKey`。
 
 用Apifox 并发300个请求 (login_sms和loginsms/code/send，下发内容相同)，会返回`操作频繁，请稍后再试`错误。
 
