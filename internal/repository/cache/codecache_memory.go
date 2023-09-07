@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/dgraph-io/ristretto"
@@ -16,14 +15,12 @@ var ErrCodeOperationTooMany = errors.New("操作频繁，请稍后再试")
 type MemoryCodeCache struct {
 	cache        *ristretto.Cache
 	keyOperating cmap.ConcurrentMap[string, struct{}] // 正在操作的key
-	lock         sync.Mutex
 }
 
 func NewMemoryCodeCache(cache *ristretto.Cache) CodeCache {
 	return &MemoryCodeCache{
 		cache:        cache,
 		keyOperating: cmap.New[struct{}](),
-		lock:         sync.Mutex{},
 	}
 }
 
@@ -32,29 +29,26 @@ type MemCode struct {
 	cnt  int
 }
 
-func (c *MemoryCodeCache) getLock(biz, phone string) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	if c.keyOperating.Has(c.key(biz, phone)) {
+func (c *MemoryCodeCache) getLockByKey(key string) error {
+	// 不存在返回的是true，存在返回的是false
+	notExist := c.keyOperating.SetIfAbsent(key, struct{}{})
+	if !notExist {
 		return ErrCodeOperationTooMany
 	}
-
-	c.keyOperating.Set(c.key(biz, phone), struct{}{})
 
 	return nil
 }
 
-func (c *MemoryCodeCache) releaseLock(biz, phone string) {
-	c.keyOperating.Remove(c.key(biz, phone))
+func (c *MemoryCodeCache) releaseLockByKey(key string) {
+	c.keyOperating.Remove(key)
 }
 
 func (c *MemoryCodeCache) Set(ctx context.Context, biz, phone, code string) error {
-	if err := c.getLock(biz, phone); err != nil {
+	if err := c.getLockByKey(c.key(biz, phone)); err != nil {
 		return err
 	}
 
-	defer c.releaseLock(biz, phone)
+	defer c.releaseLockByKey(c.key(biz, phone))
 
 	ttl, ok := c.cache.GetTTL(c.key(biz, phone))
 	if !ok {
@@ -88,11 +82,11 @@ func (c *MemoryCodeCache) Set(ctx context.Context, biz, phone, code string) erro
 }
 
 func (c *MemoryCodeCache) Verify(ctx context.Context, biz, phone, inputCode string) (bool, error) {
-	if err := c.getLock(biz, phone); err != nil {
+	if err := c.getLockByKey(c.key(biz, phone)); err != nil {
 		return false, err
 	}
 
-	defer c.releaseLock(biz, phone)
+	defer c.releaseLockByKey(c.key(biz, phone))
 
 	ttl, ok := c.cache.GetTTL(c.key(biz, phone))
 	if !ok {
