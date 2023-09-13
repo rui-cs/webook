@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -63,6 +64,33 @@ func TestUserRepositoryWithCache_FindById(t *testing.T) {
 				Ctime:    now,
 			},
 			wantErr: nil,
+		},
+		{
+			name: "缓存命中",
+			mock: func(ctrl *gomock.Controller) (dao.UserDAO, cache.UserCache) {
+				c := cachemocks.NewMockUserCache(ctrl)
+				c.EXPECT().Get(gomock.Any(), int64(123)).Return(domain.User{Id: 123, Email: "123@qq.com", Password: "password", Phone: "12323232312", Ctime: now}, nil)
+				d := daomocks.NewMockUserDAO(ctrl)
+				return d, c
+			},
+			ctx:      context.Background(),
+			id:       123,
+			wantUser: domain.User{Id: 123, Email: "123@qq.com", Password: "password", Phone: "12323232312", Ctime: now},
+			wantErr:  nil,
+		},
+		{
+			name: "缓存未命中，查询失败",
+			mock: func(ctrl *gomock.Controller) (dao.UserDAO, cache.UserCache) {
+				c := cachemocks.NewMockUserCache(ctrl)
+				c.EXPECT().Get(gomock.Any(), int64(123)).Return(domain.User{}, cache.ErrKeyNotExist)
+				d := daomocks.NewMockUserDAO(ctrl)
+				d.EXPECT().FindByID(gomock.Any(), int64(123)).Return(dao.User{}, errors.New("mock db error"))
+				return d, c
+			},
+			ctx:      context.Background(),
+			id:       123,
+			wantUser: domain.User{},
+			wantErr:  errors.New("mock db error"),
 		},
 	}
 
