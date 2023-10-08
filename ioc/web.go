@@ -1,6 +1,7 @@
 package ioc
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -13,10 +14,14 @@ import (
 	"github.com/rui-cs/webook/config"
 	"github.com/rui-cs/webook/internal/web"
 	"github.com/rui-cs/webook/internal/web/middleware"
+	midLogger "github.com/rui-cs/webook/pkg/ginx/middlewares/logger"
+	"github.com/rui-cs/webook/pkg/logger"
 )
 
 func InitWebServer(middleHdls []gin.HandlerFunc, userHdl *web.UserHandler) *gin.Engine {
 	server := gin.Default()
+
+	//gin.SetMode(gin.ReleaseMode)
 
 	server.Use(middleHdls...)
 	userHdl.RegisterRoutes(server)
@@ -24,9 +29,14 @@ func InitWebServer(middleHdls []gin.HandlerFunc, userHdl *web.UserHandler) *gin.
 	return server
 }
 
-func InitMiddlewares(client redis.Cmdable) []gin.HandlerFunc {
+func InitMiddlewares(client redis.Cmdable, l logger.LoggerV1) []gin.HandlerFunc {
 	return []gin.HandlerFunc{
 		corsHandler(),
+
+		midLogger.NewBuilder(func(ctx context.Context, al *midLogger.AccessLog) {
+			l.Debug("HTTP请求", logger.Field{Key: "al", Value: al})
+		}).AllowReqBody(true).AllowRespBody().Build(),
+
 		middleware.NewLoginJWTMiddlewareBuilder().
 			IgnorePath("/users/login").
 			IgnorePath("/users/login_sms/code/send").

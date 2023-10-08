@@ -6,6 +6,7 @@ import (
 
 	"github.com/rui-cs/webook/internal/domain"
 	"github.com/rui-cs/webook/internal/repository"
+	"github.com/rui-cs/webook/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -25,10 +26,12 @@ type UserService interface {
 
 type userService struct {
 	repo repository.UserRepository
+	l    logger.LoggerV1
 }
 
-func NewUserService(repo repository.UserRepository) UserService {
-	return &userService{repo: repo}
+// 采用了依赖注入，只管用，一点不关心如何初始化
+func NewUserService(repo repository.UserRepository, l logger.LoggerV1) UserService {
+	return &userService{repo: repo, l: l}
 }
 
 func (svc *userService) SignUp(ctx context.Context, u domain.User) error {
@@ -65,6 +68,8 @@ func (svc *userService) FindOrCreate(ctx context.Context, phone string) (domain.
 	if !errors.Is(err, repository.ErrUserNotFound) {
 		return u, err
 	}
+
+	svc.l.Info("用户未注册", logger.String("phone", phone))
 
 	// 慢路径
 	u = domain.User{Phone: phone}
