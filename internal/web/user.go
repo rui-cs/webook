@@ -44,7 +44,7 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 
 	ug.POST("/signup", u.SignUp)
 	ug.POST("/login_sms/code/send", u.SendLoginSMSCode)
-	ug.POST("/login_sms", u.LoginSMS)
+	ug.POST("/login_sms", ginx.WrapReq[LoginReq](u.LoginSMS))
 
 	var routerGroup = map[int]func(){
 		config.CheckSession: func() {
@@ -56,7 +56,7 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 		config.JWT: func() {
 			ug.POST("/login", u.LoginJWT)
 			ug.GET("/profile", u.ProfileJWT)
-			ug.POST("/edit", u.EditJWT)
+			ug.POST("/edit", ginx.WrapReqAndToken[EditReq, UserClaims](u.EditJWT))
 			ug.POST("/logout", u.LogoutJWT)
 		},
 	}
@@ -93,41 +93,37 @@ func (u *UserHandler) SendLoginSMSCode(ctx *gin.Context) {
 	ginx.WrapReq[Req](fn)(ctx)
 }
 
-func (u *UserHandler) LoginSMS(ctx *gin.Context) {
-	type Req struct {
-		Phone string `json:"phone"`
-		Code  string `json:"code"`
+type LoginReq struct {
+	Phone string `json:"phone"`
+	Code  string `json:"code"`
+}
+
+func (u *UserHandler) LoginSMS(ctx *gin.Context, req LoginReq) (ginx.Result, error) {
+	ok, err := u.codeSvc.Verify(ctx, biz, req.Phone, req.Code)
+
+	if errors.Is(err, service.ErrCodeOperationTooMany) {
+		fmt.Println("----------------------------------操作太频繁，请稍后再试---------------------------")
+		return ginx.Result{Msg: "操作太频繁，请稍后再试"}, err
 	}
 
-	fn := func(ctx *gin.Context, req Req) (ginx.Result, error) {
-		ok, err := u.codeSvc.Verify(ctx, biz, req.Phone, req.Code)
-
-		if errors.Is(err, service.ErrCodeOperationTooMany) {
-			fmt.Println("----------------------------------操作太频繁，请稍后再试---------------------------")
-			return ginx.Result{Msg: "操作太频繁，请稍后再试"}, err
-		}
-
-		if err != nil {
-			return ginx.Result{Code: 5, Msg: "系统错误"}, err
-		}
-
-		if !ok {
-			return ginx.Result{Code: 4, Msg: "验证码有误"}, err
-		}
-
-		user, err := u.svc.FindOrCreate(ctx, req.Phone)
-		if err != nil {
-			return ginx.Result{Code: 5, Msg: "系统错误"}, err
-		}
-
-		if err = u.setJWTToken(ctx, user.Id); err != nil {
-			return ginx.Result{Msg: "系统错误"}, err
-		}
-
-		return ginx.Result{Msg: "登录成功"}, err
+	if err != nil {
+		return ginx.Result{Code: 5, Msg: "系统错误"}, err
 	}
 
-	ginx.WrapReq[Req](fn)(ctx)
+	if !ok {
+		return ginx.Result{Code: 4, Msg: "验证码有误"}, err
+	}
+
+	user, err := u.svc.FindOrCreate(ctx, req.Phone)
+	if err != nil {
+		return ginx.Result{Code: 5, Msg: "系统错误"}, err
+	}
+
+	if err = u.setJWTToken(ctx, user.Id); err != nil {
+		return ginx.Result{Msg: "系统错误"}, err
+	}
+
+	return ginx.Result{Msg: "登录成功"}, err
 }
 
 func (u *UserHandler) setJWTToken(ctx *gin.Context, uid int64) error {
@@ -253,6 +249,8 @@ func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 	ginx.WrapReq[LoginReq](fn)(ctx)
 }
 
+var _ jwt.Claims = (*UserClaims)(nil)
+
 // 放入token的数据
 type UserClaims struct {
 	jwt.RegisteredClaims
@@ -311,12 +309,13 @@ func (u *UserHandler) ProfileJWT(ctx *gin.Context) {
 	ginx.WrapReq[EmptyReq](fn)(ctx)
 }
 
+type EditReq struct {
+	Name     string             `json:"name"`
+	Birthday service.WebookTime `json:"birthday"`
+	Resume   string             `json:"resume"`
+}
+
 func (u *UserHandler) Edit(ctx *gin.Context) {
-	type EditReq struct {
-		Name     string             `json:"name"`
-		Birthday service.WebookTime `json:"birthday"`
-		Resume   string             `json:"resume"`
-	}
 
 	fn := func(ctx *gin.Context, req EditReq) (ginx.Result, error) {
 		s := sessions.Default(ctx)
@@ -341,37 +340,17 @@ func (u *UserHandler) Edit(ctx *gin.Context) {
 	ginx.WrapReq[EditReq](fn)(ctx)
 }
 
-func (u *UserHandler) EditJWT(ctx *gin.Context) {
-	type EditReq struct {
-		Name     string             `json:"name"`
-		Birthday service.WebookTime `json:"birthday"`
-		Resume   string             `json:"resume"`
+func (u *UserHandler) EditJWT(ctx *gin.Context, req EditReq, uc UserClaims) (ginx.Result, error) {
+	err := u.svc.Edit(ctx, uc.Uid, req.Name, req.Birthday, req.Resume)
+	if errors.Is(err, service.ErrUserDuplicateName) {
+		return ginx.Result{Msg: "用户名重复"}, err
 	}
 
-	fn := func(ctx *gin.Context, req EditReq) (ginx.Result, error) {
-		c, ok := ctx.Get("claims")
-		if !ok {
-			return ginx.Result{Msg: "系统错误"}, nil
-		}
-
-		claims, ok := c.(*UserClaims)
-		if !ok {
-			return ginx.Result{Msg: "系统错误"}, nil
-		}
-
-		err := u.svc.Edit(ctx, claims.Uid, req.Name, req.Birthday, req.Resume)
-		if errors.Is(err, service.ErrUserDuplicateName) {
-			return ginx.Result{Msg: "用户名重复"}, err
-		}
-
-		if err != nil {
-			return ginx.Result{Msg: "系统错误"}, err
-		}
-
-		return ginx.Result{Msg: "修改成功"}, nil
+	if err != nil {
+		return ginx.Result{Msg: "系统错误"}, err
 	}
 
-	ginx.WrapReq[EditReq](fn)(ctx)
+	return ginx.Result{Msg: "修改成功"}, nil
 }
 
 func (u *UserHandler) Logout(ctx *gin.Context) {
