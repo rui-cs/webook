@@ -1,13 +1,19 @@
 package ioc
 
 import (
-	"fmt"
-
 	"github.com/redis/go-redis/v9"
-	"github.com/rui-cs/webook/config"
+	"github.com/spf13/viper"
 )
 
+//func InitRedis() redis.Cmdable {
+//	client := redis.NewClient(&redis.Options{Addr: fmt.Sprintf("%s:%s", config.Config.RCg.Addr, config.Config.RCg.Port)})
+//	return client
+//}
+
 func InitRedis() redis.Cmdable {
-	client := redis.NewClient(&redis.Options{Addr: fmt.Sprintf("%s:%s", config.Config.RCg.Addr, config.Config.RCg.Port)})
-	return client
+	addr := viper.GetString("redis.addr")
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: addr,
+	})
+	return redisClient
 }

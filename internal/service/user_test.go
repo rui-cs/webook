@@ -10,6 +10,7 @@ import (
 	"github.com/rui-cs/webook/internal/domain"
 	"github.com/rui-cs/webook/internal/repository"
 	repomocks "github.com/rui-cs/webook/internal/repository/mocks"
+	"github.com/rui-cs/webook/pkg/logger"
 	"go.uber.org/mock/gomock"
 )
 
@@ -94,7 +95,7 @@ func TestUserService_Login(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			svc := NewUserService(tc.mock(ctrl))
+			svc := NewUserService(tc.mock(ctrl), &logger.NopLogger{})
 			u, err := svc.Login(context.Background(), tc.email, tc.password)
 			assert.Equal(t, tc.wantErr, err)
 			assert.Equal(t, tc.wantUser, u)

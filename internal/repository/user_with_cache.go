@@ -23,6 +23,7 @@ type UserRepository interface {
 	Create(ctx context.Context, u domain.User) error
 	FindById(ctx context.Context, id int64) (domain.User, error)
 	EditByID(ctx context.Context, id int64, name, birthday, resume string) error
+	FindByWechat(ctx context.Context, openID string) (domain.User, error)
 }
 
 type UserRepositoryWithCache struct {
@@ -32,6 +33,14 @@ type UserRepositoryWithCache struct {
 
 func NewUserRepository(d dao.UserDAO, c cache.UserCache) UserRepository {
 	return &UserRepositoryWithCache{dao: d, cache: c}
+}
+
+func (ur *UserRepositoryWithCache) FindByWechat(ctx context.Context, openID string) (domain.User, error) {
+	u, err := ur.dao.FindByWechat(ctx, openID)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return ur.entityToDomain(u), nil
 }
 
 func (ur *UserRepositoryWithCache) Create(ctx context.Context, u domain.User) error {
@@ -56,7 +65,10 @@ func (ur *UserRepositoryWithCache) FindByEmail(ctx context.Context, email string
 		return domain.User{}, err
 	}
 
-	return domain.User{Id: user.Id, Email: user.Email.String, Password: user.Password}, nil
+	return domain.User{Id: user.Id,
+		Email:    user.Email.String,
+		Password: user.Password,
+	}, nil
 }
 
 func (ur *UserRepositoryWithCache) EditByID(ctx context.Context, id int64, name, birthday, resume string) error {
@@ -111,8 +123,16 @@ func (ur *UserRepositoryWithCache) domainToEntity(u domain.User) dao.User {
 		Birthday: u.Birthday,
 		Resume:   u.Resume,
 		Password: u.Password,
-		Ctime:    u.Ctime.Unix(),
 		Utime:    time.Now().Unix(),
+		WechatOpenID: sql.NullString{
+			String: u.WechatInfo.OpenID,
+			Valid:  u.WechatInfo.OpenID != "",
+		},
+		WechatUnionID: sql.NullString{
+			String: u.WechatInfo.UnionID,
+			Valid:  u.WechatInfo.UnionID != "",
+		},
+		Ctime: u.Ctime.UnixMilli(),
 	}
 
 	return res
@@ -128,5 +148,10 @@ func (ur *UserRepositoryWithCache) entityToDomain(u dao.User) domain.User {
 		Birthday: u.Birthday,
 		Resume:   u.Resume,
 		Ctime:    time.UnixMilli(u.Ctime),
+
+		WechatInfo: domain.WechatInfo{
+			UnionID: u.WechatUnionID.String,
+			OpenID:  u.WechatOpenID.String,
+		},
 	}
 }

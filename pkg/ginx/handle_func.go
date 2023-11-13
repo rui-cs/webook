@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func WrapReq[T any](fn func(ctx *gin.Context, req T) (Result, error)) gin.HandlerFunc {
+func WrapReq[T any](fn func(ctx *gin.Context, req T /*, uc jwt.UserClaims*/) (Result, error)) func(*gin.Context) {
 	return func(ctx *gin.Context) {
 		var req T
 		if err := ctx.Bind(&req); err != nil {
@@ -23,8 +23,9 @@ func WrapReq[T any](fn func(ctx *gin.Context, req T) (Result, error)) gin.Handle
 	}
 }
 
-type Result struct {
-	Code int    `json:"code"` // 业务错误码
-	Msg  string `json:"msg"`
-	Data any    `json:"data"`
-}
+//
+//type Result struct {
+//	Code int    `json:"code"` // 业务错误码
+//	Msg  string `json:"msg"`
+//	Data any    `json:"data"`
+//}

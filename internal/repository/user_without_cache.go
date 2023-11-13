@@ -57,6 +57,14 @@ func (ur *UserRepositoryWithoutCache) FindByPhone(ctx context.Context, phone str
 	return ur.entityToDomain(u), err
 }
 
+func (ur *UserRepositoryWithoutCache) FindByWechat(ctx context.Context, openID string) (domain.User, error) {
+	u, err := ur.dao.FindByWechat(ctx, openID)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return ur.entityToDomain(u), nil
+}
+
 func (ur *UserRepositoryWithoutCache) entityToDomain(u dao.User) domain.User {
 	return domain.User{
 		Id:       u.Id,

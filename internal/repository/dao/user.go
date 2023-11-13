@@ -22,13 +22,28 @@ type UserDAO interface {
 	FindByPhone(ctx context.Context, phone string) (User, error)
 	Insert(ctx context.Context, u User) error
 	EditByID(ctx context.Context, id int64, name, birthday, resume string) error
+	FindByWechat(ctx context.Context, openID string) (User, error)
 }
+
+type DBProvider func() *gorm.DB
 
 type GormUserDAO struct {
 	db *gorm.DB
+
+	p DBProvider
 }
 
+func NewUserDAOV1(p DBProvider) UserDAO {
+	return &GormUserDAO{
+		p: p,
+	}
+}
 func NewUserDAO(db *gorm.DB) UserDAO {
+	//viper.OnConfigChange(func(in fsnotify.Event) {
+	//	db, err := gorm.Open(mysql.Open())
+	//	pt := unsafe.Pointer(&res.db)
+	//	atomic.StorePointer(&pt, unsafe.Pointer(&db))
+	//})
 	return &GormUserDAO{db: db}
 }
 
@@ -78,6 +93,12 @@ func (ud *GormUserDAO) FindByEmail(ctx context.Context, email string) (User, err
 	return u, err
 }
 
+func (ud *GormUserDAO) FindByWechat(ctx context.Context, openID string) (User, error) {
+	var u User
+	err := ud.db.WithContext(ctx).Where("wechat_open_id=?", openID).First(&u).Error
+	return u, err
+}
+
 // User 直接对应数据库表结构
 // 有些人叫做 entity，有些人叫做 model，有些人叫做 PO(persistent object)
 type User struct {
@@ -89,6 +110,21 @@ type User struct {
 	Birthday string
 	Resume   string `gorm:"type:text"`
 	Password string
+
+	// 索引的最左匹配原则：
+	// 假如索引在 <A, B, C> 建好了
+	// A, AB, ABC 都能用
+	// WHERE A =?
+	// WHERE A = ? AND B =?    WHERE B = ? AND A =?
+	// WHERE A = ? AND B = ? AND C = ?  ABC 的顺序随便换
+	// WHERE 里面带了 ABC，可以用
+	// WHERE 里面，没有 A，就不能用
+
+	// 如果要创建联合索引，<unionid, openid>，用 openid 查询的时候不会走索引
+	// <openid, unionid> 用 unionid 查询的时候，不会走索引
+	// 微信的字段
+	WechatUnionID sql.NullString `gorm:"type=varchar(1024)"`
+	WechatOpenID  sql.NullString `gorm:"type=varchar(1024);unique"`
 
 	Ctime int64 // 创建时间，毫秒数
 	Utime int64 // 更新时间，毫秒数

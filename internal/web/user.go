@@ -3,15 +3,17 @@ package web
 import (
 	"errors"
 	"fmt"
-	"time"
+	"net/http"
 
 	regexp "github.com/dlclark/regexp2"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/redis/go-redis/v9"
 	"github.com/rui-cs/webook/config"
 	"github.com/rui-cs/webook/internal/domain"
 	"github.com/rui-cs/webook/internal/service"
+	ijwt "github.com/rui-cs/webook/internal/web/jwt"
 	"github.com/rui-cs/webook/pkg/ginx"
 )
 
@@ -25,9 +27,17 @@ type UserHandler struct {
 	codeSvc  service.CodeService
 	emailExp *regexp.Regexp
 	passExp  *regexp.Regexp
+	ijwt.Handler
+	cmd redis.Cmdable
 }
 
-func NewUserHandler(svc service.UserService, codeSvc service.CodeService) *UserHandler {
+// 确保 UserHandler 上实现了 handler 接口
+var _ handler = &UserHandler{}
+
+// 这个更优雅
+var _ handler = (*UserHandler)(nil)
+
+func NewUserHandler(svc service.UserService, codeSvc service.CodeService, jwtHdl ijwt.Handler) *UserHandler {
 	emailExp := regexp.MustCompile(emailRegex, regexp.None)
 	passExp := regexp.MustCompile(passRegex, regexp.None)
 
@@ -36,6 +46,7 @@ func NewUserHandler(svc service.UserService, codeSvc service.CodeService) *UserH
 		codeSvc:  codeSvc,
 		emailExp: emailExp,
 		passExp:  passExp,
+		Handler:  jwtHdl,
 	}
 }
 
@@ -45,6 +56,8 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 	ug.POST("/signup", u.SignUp)
 	ug.POST("/login_sms/code/send", u.SendLoginSMSCode)
 	ug.POST("/login_sms", u.LoginSMS)
+
+	ug.POST("/refresh_token", u.RefreshToken)
 
 	var routerGroup = map[int]func(){
 		config.CheckSession: func() {
@@ -120,7 +133,7 @@ func (u *UserHandler) LoginSMS(ctx *gin.Context) {
 			return ginx.Result{Code: 5, Msg: "系统错误"}, err
 		}
 
-		if err = u.setJWTToken(ctx, user.Id); err != nil {
+		if err = u.SetLoginToken(ctx, user.Id); err != nil {
 			return ginx.Result{Msg: "系统错误"}, err
 		}
 
@@ -130,24 +143,24 @@ func (u *UserHandler) LoginSMS(ctx *gin.Context) {
 	ginx.WrapReq[Req](fn)(ctx)
 }
 
-func (u *UserHandler) setJWTToken(ctx *gin.Context, uid int64) error {
-	claims := UserClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute * time.Duration(config.Config.ValidTime)))},
-		Uid:       uid,
-		UserAgent: ctx.Request.UserAgent(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-	tokenStr, err := token.SignedString([]byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0")) // todo
-	if err != nil {
-		return err
-	}
-
-	ctx.Header("x-jwt-token", tokenStr)
-
-	return nil
-}
+//func (u *UserHandler) setJWTToken(ctx *gin.Context, uid int64) error {
+//	claims := UserClaims{
+//		RegisteredClaims: jwt.RegisteredClaims{
+//			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute * time.Duration(config.Config.ValidTime)))},
+//		Uid:       uid,
+//		UserAgent: ctx.Request.UserAgent(),
+//	}
+//
+//	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
+//	tokenStr, err := token.SignedString([]byte("95osj3fUD7fo0mlYdDbncXz4VD2igvf0")) // todo
+//	if err != nil {
+//		return err
+//	}
+//
+//	ctx.Header("x-jwt-token", tokenStr)
+//
+//	return nil
+//}
 
 func (u *UserHandler) SignUp(ctx *gin.Context) {
 	type SignUpReq struct {
@@ -242,7 +255,7 @@ func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 			return ginx.Result{Msg: "系统错误"}, err
 		}
 
-		err = u.setJWTToken(ctx, user.Id)
+		err = u.SetLoginToken(ctx, user.Id)
 		if err != nil {
 			return ginx.Result{Msg: "系统错误"}, err
 		}
@@ -254,11 +267,11 @@ func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 }
 
 // 放入token的数据
-type UserClaims struct {
-	jwt.RegisteredClaims
-	Uid       int64
-	UserAgent string
-}
+//type UserClaims struct {
+//	jwt.RegisteredClaims
+//	Uid       int64
+//	UserAgent string
+//}
 
 const userID = "userID"
 
@@ -295,12 +308,12 @@ func (u *UserHandler) ProfileJWT(ctx *gin.Context) {
 			return ginx.Result{Msg: "系统错误"}, nil
 		}
 
-		claims, ok := c.(*UserClaims)
+		claims, ok := c.(*ijwt.UserClaims)
 		if !ok {
 			return ginx.Result{Msg: "系统错误"}, nil
 		}
 
-		user, err := u.svc.Profile(ctx, claims.Uid)
+		user, err := u.svc.Profile(ctx, claims.Id)
 		if err != nil {
 			return ginx.Result{Msg: "系统错误"}, err
 		}
@@ -354,12 +367,12 @@ func (u *UserHandler) EditJWT(ctx *gin.Context) {
 			return ginx.Result{Msg: "系统错误"}, nil
 		}
 
-		claims, ok := c.(*UserClaims)
+		claims, ok := c.(*ijwt.UserClaims)
 		if !ok {
 			return ginx.Result{Msg: "系统错误"}, nil
 		}
 
-		err := u.svc.Edit(ctx, claims.Uid, req.Name, req.Birthday, req.Resume)
+		err := u.svc.Edit(ctx, claims.Id, req.Name, req.Birthday, req.Resume)
 		if errors.Is(err, service.ErrUserDuplicateName) {
 			return ginx.Result{Msg: "用户名重复"}, err
 		}
@@ -394,5 +407,45 @@ func (u *UserHandler) Logout(ctx *gin.Context) {
 }
 
 func (u *UserHandler) LogoutJWT(ctx *gin.Context) {
-	// todo
+	err := u.ClearToken(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusOK, Result{
+			Code: 5,
+			Msg:  "退出登录失败",
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, Result{
+		Msg: "退出登录OK",
+	})
+}
+
+// RefreshToken 可以同时刷新长短 token，用 redis 来记录是否有效，即 refresh_token 是一次性的
+// 参考登录校验部分，比较 User-Agent 来增强安全性
+func (u *UserHandler) RefreshToken(ctx *gin.Context) {
+	// 只有这个接口，拿出来的才是 refresh_token，其它地方都是 access token
+	refreshToken := u.ExtractTokenString(ctx)
+	var rc ijwt.RefreshClaims
+	token, err := jwt.ParseWithClaims(refreshToken, &rc, func(token *jwt.Token) (interface{}, error) {
+		return ijwt.RefreshTokenKey, nil
+	})
+	if err != nil || !token.Valid {
+		ctx.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	err = u.CheckSession(ctx, rc.Ssid)
+	if err != nil {
+		// 要么 redis 有问题，要么已经退出登录
+		ctx.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	// 搞个新的 access_token
+	err = u.SetJWTToken(ctx, rc.Ssid, rc.Id)
+	if err != nil {
+		ctx.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	ctx.JSON(http.StatusOK, Result{
+		Msg: "刷新成功",
+	})
 }

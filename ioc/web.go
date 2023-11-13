@@ -13,23 +13,30 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rui-cs/webook/config"
 	"github.com/rui-cs/webook/internal/web"
+	ijwt "github.com/rui-cs/webook/internal/web/jwt"
 	"github.com/rui-cs/webook/internal/web/middleware"
 	midLogger "github.com/rui-cs/webook/pkg/ginx/middlewares/logger"
 	"github.com/rui-cs/webook/pkg/logger"
 )
 
-func InitWebServer(middleHdls []gin.HandlerFunc, userHdl *web.UserHandler) *gin.Engine {
+func InitWebServer(middleHdls []gin.HandlerFunc,
+	userHdl *web.UserHandler,
+	oauth2WechatHdl *web.OAuth2WechatHandler,
+	articleHdl *web.ArticleHandler) *gin.Engine {
+
 	server := gin.Default()
 
 	//gin.SetMode(gin.ReleaseMode)
 
 	server.Use(middleHdls...)
 	userHdl.RegisterRoutes(server)
+	articleHdl.RegisterRoutes(server)
+	oauth2WechatHdl.RegisterRoutes(server)
 
 	return server
 }
 
-func InitMiddlewares(client redis.Cmdable, l logger.LoggerV1) []gin.HandlerFunc {
+func InitMiddlewares(client redis.Cmdable, jwtHdl ijwt.Handler, l logger.LoggerV1) []gin.HandlerFunc {
 	return []gin.HandlerFunc{
 		corsHandler(),
 
@@ -37,11 +44,16 @@ func InitMiddlewares(client redis.Cmdable, l logger.LoggerV1) []gin.HandlerFunc 
 			l.Debug("HTTP请求", logger.Field{Key: "al", Value: al})
 		}).AllowReqBody(true).AllowRespBody().Build(),
 
-		middleware.NewLoginJWTMiddlewareBuilder().
-			IgnorePath("/users/login").
-			IgnorePath("/users/login_sms/code/send").
-			IgnorePath("/users/login_sms").
-			IgnorePath("/users/signup").Build(),
+		middleware.NewJWTLoginMiddlewareBuilder(jwtHdl).Build(),
+		//IgnorePath("/users/refresh_token").
+		//IgnorePath("/users/login").
+		//IgnorePath("/users/login_sms/code/send").
+		//IgnorePath("/users/login_sms").
+		//IgnorePath("/oauth2/wechat/authurl").
+		//IgnorePath("/oauth2/wechat/callback").
+		//IgnorePath("/users/signup").Build(),
+
+		//ratelimit.NewBuilder(redisClient, time.Second, 100).Build(),
 	}
 }
 
@@ -53,7 +65,7 @@ func corsHandler() gin.HandlerFunc {
 		AllowMethods:     []string{"POST", "GET"},
 		AllowHeaders:     []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
-		ExposeHeaders:    []string{"x-jwt-token"},
+		ExposeHeaders:    []string{"x-jwt-token", "x-refresh-token"},
 		MaxAge:           12 * time.Hour,
 	})
 }

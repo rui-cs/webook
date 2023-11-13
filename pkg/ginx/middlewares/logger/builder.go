@@ -10,6 +10,10 @@ import (
 	"go.uber.org/atomic"
 )
 
+// MiddlewareBuilder 注意点：
+// 1. 小心日志内容过多。URL 可能很长，请求体，响应体都可能很大，要考虑是不是完全输出到日志里面
+// 2. 考虑 1 的问题，以及用户可能换用不同的日志框架，所以要有足够的灵活性
+// 3. 考虑动态开关，结合监听配置文件，要小心并发安全
 type MiddlewareBuilder struct {
 	allowReqBody  *atomic.Bool
 	allowRespBody bool
@@ -41,7 +45,7 @@ func (b *MiddlewareBuilder) Build() gin.HandlerFunc {
 			url = url[:1024]
 		}
 
-		al := &AccessLog{Method: ctx.Request.Method, Url: url}
+		al := &AccessLog{Method: ctx.Request.Method, Url: url /*URL 本身也可能很长*/}
 
 		if b.allowReqBody.Load() && ctx.Request.Body != nil {
 			// Body读完就没有了
@@ -70,6 +74,7 @@ func (b *MiddlewareBuilder) Build() gin.HandlerFunc {
 			b.loggerFunc(ctx, al)
 		}()
 
+		// 执行到业务逻辑
 		ctx.Next()
 	}
 }
@@ -95,7 +100,9 @@ func (w responseWriter) WriteString(data string) (int, error) {
 }
 
 type AccessLog struct {
-	Method   string
+	// HTTP 请求的方法
+	Method string
+	// Url 整个请求 URL
 	Url      string
 	Duration string
 	ReqBody  string

@@ -211,7 +211,7 @@ func TestUserHandler_SignUp(t *testing.T) {
 			defer ctrl.Finish()
 
 			server := gin.Default()
-			h := NewUserHandler(tc.mock(ctrl), nil)
+			h := NewUserHandler(tc.mock(ctrl), nil, nil)
 			h.RegisterRoutes(server)
 
 			req, err := http.NewRequest(http.MethodPost, "/users/signup", bytes.NewBuffer([]byte(tc.reqBody)))
@@ -338,8 +338,25 @@ func TestUserHandler_LoginSMS(t *testing.T) {
 			wantCode: http.StatusOK,
 		},
 		//{
-		//	name:     "setJWTToken-系统错误",
-		//	wantCode: http.StatusOK,
+		//	name: "setJWTToken-系统错误",
+		//	mockUserSVC: func(ctrl *gomock.Controller) service.UserService {
+		//		userSVC := svcmocks.NewMockUserService(ctrl)
+		//		userSVC.EXPECT().FindOrCreate(gomock.Any(), "15612345678").Return(domain.User{}, nil)
+		//		return userSVC
+		//	},
+		//	mockCodeSVC: func(ctrl *gomock.Controller) service.CodeService {
+		//		codeSVC := svcmocks.NewMockCodeService(ctrl)
+		//		codeSVC.EXPECT().Verify(gomock.Any(), biz, "15612345678", "234567").Return(true, nil)
+		//		return codeSVC
+		//	},
+		//	reqBody: `
+		//		{
+		//			"phone": "15612345678",
+		//			"code": "234567"
+		//		}`,
+		//	isJson:     false,
+		//	wantCode:   http.StatusOK,
+		//	wantString: "系统错误",
 		//},
 	}
 
@@ -349,7 +366,7 @@ func TestUserHandler_LoginSMS(t *testing.T) {
 			defer ctrl.Finish()
 
 			server := gin.Default()
-			h := NewUserHandler(tc.mockUserSVC(ctrl), tc.mockCodeSVC(ctrl))
+			h := NewUserHandler(tc.mockUserSVC(ctrl), tc.mockCodeSVC(ctrl), nil)
 			h.RegisterRoutes(server)
 
 			req, err := http.NewRequest(http.MethodPost, "/users/login_sms", bytes.NewBuffer([]byte(tc.reqBody)))

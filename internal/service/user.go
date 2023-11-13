@@ -20,6 +20,7 @@ type UserService interface {
 	SignUp(ctx context.Context, u domain.User) error
 	Login(ctx context.Context, email, password string) (domain.User, error)
 	FindOrCreate(ctx context.Context, phone string) (domain.User, error)
+	FindOrCreateByWechat(ctx context.Context, wechatInfo domain.WechatInfo) (domain.User, error)
 	Profile(ctx context.Context, id int64) (domain.User, error)
 	Edit(ctx context.Context, id int64, name string, birthday WebookTime, resume string) error
 }
@@ -79,6 +80,23 @@ func (svc *userService) FindOrCreate(ctx context.Context, phone string) (domain.
 	}
 
 	return svc.repo.FindByPhone(ctx, phone)
+}
+
+func (svc *userService) FindOrCreateByWechat(ctx context.Context, wechatInfo domain.WechatInfo) (domain.User, error) {
+	u, err := svc.repo.FindByWechat(ctx, wechatInfo.OpenID)
+	if err != repository.ErrUserNotFound {
+		return u, err
+	}
+
+	u = domain.User{WechatInfo: wechatInfo}
+
+	err = svc.repo.Create(ctx, u)
+	if err != nil && err != repository.ErrUserDuplicateName {
+		return u, err
+	}
+
+	// 因为这里会遇到主从延迟的问题
+	return svc.repo.FindByWechat(ctx, wechatInfo.OpenID)
 }
 
 func (svc *userService) Edit(ctx context.Context, id int64, name string, birthday WebookTime, resume string) error {

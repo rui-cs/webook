@@ -13,4 +13,7 @@ type User struct {
 	Birthday string    `json:"birthday"`
 	Resume   string    `json:"resume"`
 	Ctime    time.Time `json:"-"`
+
+	// 不要组合，万一将来可能还有 DingDingInfo，里面有同名字段 UnionID
+	WechatInfo WechatInfo
 }
