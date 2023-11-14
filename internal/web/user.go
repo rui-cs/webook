@@ -56,7 +56,7 @@ func (u *UserHandler) RegisterRoutes(server *gin.Engine) {
 		config.JWT: func() {
 			ug.POST("/login", u.LoginJWT)
 			ug.GET("/profile", u.ProfileJWT)
-			ug.POST("/edit", ginx.WrapReqAndToken[EditReq, UserClaims](u.EditJWT))
+			ug.POST("/edit", ginx.WrapReqAndToken[EditReq, *UserClaims](u.EditJWT))
 			ug.POST("/logout", u.LogoutJWT)
 		},
 	}
@@ -340,7 +340,7 @@ func (u *UserHandler) Edit(ctx *gin.Context) {
 	ginx.WrapReq[EditReq](fn)(ctx)
 }
 
-func (u *UserHandler) EditJWT(ctx *gin.Context, req EditReq, uc UserClaims) (ginx.Result, error) {
+func (u *UserHandler) EditJWT(ctx *gin.Context, req EditReq, uc *UserClaims) (ginx.Result, error) {
 	err := u.svc.Edit(ctx, uc.Uid, req.Name, req.Birthday, req.Resume)
 	if errors.Is(err, service.ErrUserDuplicateName) {
 		return ginx.Result{Msg: "用户名重复"}, err
