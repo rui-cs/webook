@@ -22,7 +22,8 @@ import (
 func InitWebServer(middleHdls []gin.HandlerFunc,
 	userHdl *web.UserHandler,
 	oauth2WechatHdl *web.OAuth2WechatHandler,
-	articleHdl *web.ArticleHandler) *gin.Engine {
+	articleHdl *web.ArticleHandler,
+	hotListHdl *web.HotListHandler) *gin.Engine {
 
 	server := gin.Default()
 
@@ -32,6 +33,7 @@ func InitWebServer(middleHdls []gin.HandlerFunc,
 	userHdl.RegisterRoutes(server)
 	articleHdl.RegisterRoutes(server)
 	oauth2WechatHdl.RegisterRoutes(server)
+	hotListHdl.RegisterRoutes(server)
 
 	return server
 }

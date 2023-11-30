@@ -1,0 +1,92 @@
+curl --location --request POST 'http://127.0.0.1:8080/hotlist/liketopn' \
+--header 'User-Agent: Apifox/1.0.0 (https://apifox.com)' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJJZCI6MiwiVXNlckFnZW50IjoiQXBpZm94LzEuMC4wIChodHRwczovL2FwaWZveC5jb20pIiwiU3NpZCI6IjY1ZmY5YmQ0LWEwZGEtNDYzMi1iM2JhLTI2ZTU0YjY0MTAxYiIsImV4cCI6MTcwMTMxMjcxM30.glJasvfM4wubw_v3j412s7s5MXLR91MLnyOhhEDQUFI' \
+--data-raw '{
+    "bizs": [
+        "videotest",
+        "articletest"
+    ]
+}'
+{
+    "code": 0,
+    "msg": "",
+    "data": {
+        "articletest": [
+            {
+                "Biz": "articletest",
+                "Id": "id2",
+                "Cnt": "200",
+                "Name": ""
+            },
+            {
+                "Biz": "articletest",
+                "Id": "id7",
+                "Cnt": "79",
+                "Name": ""
+            },
+            {
+                "Biz": "articletest",
+                "Id": "id6",
+                "Cnt": "43",
+                "Name": ""
+            },
+            {
+                "Biz": "articletest",
+                "Id": "id5",
+                "Cnt": "32",
+                "Name": ""
+            },
+            {
+                "Biz": "articletest",
+                "Id": "id1",
+                "Cnt": "22",
+                "Name": ""
+            },
+            {
+                "Biz": "articletest",
+                "Id": "id3",
+                "Cnt": "12",
+                "Name": ""
+            }
+        ],
+        "videotest": [
+            {
+                "Biz": "videotest",
+                "Id": "id2",
+                "Cnt": "200",
+                "Name": ""
+            },
+            {
+                "Biz": "videotest",
+                "Id": "id7",
+                "Cnt": "78",
+                "Name": ""
+            },
+            {
+                "Biz": "videotest",
+                "Id": "id6",
+                "Cnt": "43",
+                "Name": ""
+            },
+            {
+                "Biz": "videotest",
+                "Id": "id5",
+                "Cnt": "32",
+                "Name": ""
+            },
+            {
+                "Biz": "videotest",
+                "Id": "id1",
+                "Cnt": "22",
+                "Name": ""
+            },
+            {
+                "Biz": "videotest",
+                "Id": "id3",
+                "Cnt": "12",
+                "Name": ""
+            }
+        ]
+    }
+}

@@ -119,16 +119,19 @@ func InitWebServer() *App {
 		//cache.NewCodeCache,
 		cache.NewRedisCodeCache,
 		cache.NewRedisArticleCache,
+		cache.NewHotListCache,
 
 		repository.NewUserRepository,
 		repository.NewCodeRepository,
 		repository.NewCachedInteractiveRepository,
 		articleRepo.NewArticleRepository,
+		repository.NewHotListRepo,
 
 		service.NewUserService,
 		service.NewCodeService,
 		service.NewArticleService,
 		service.NewInteractiveService,
+		service.NewHotListService,
 
 		// 直接基于内存实现
 		ioc.InitSMSService,
@@ -137,6 +140,7 @@ func InitWebServer() *App {
 		web.NewUserHandler,
 		web.NewArticleHandler,
 		web.NewOAuth2WechatHandler,
+		web.NewHotListHandler,
 		//ioc.NewWechatHandlerConfig,
 		ijwt.NewRedisHandler,
 		// 你中间件呢？
