@@ -131,7 +131,7 @@ func (a *ArticleHandler) List(ctx *gin.Context, req ListReq, uc ijwt.UserClaims)
 		return ginx.Result{
 			Code: 5,
 			Msg:  "系统错误",
-		}, nil
+		}, err
 	}
 	// 在列表页，不显示全文，只显示一个"摘要"
 	// 比如说，简单的摘要就是前几句话
