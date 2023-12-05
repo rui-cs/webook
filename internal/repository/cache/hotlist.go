@@ -4,17 +4,37 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/rui-cs/webook/internal/domain"
+	"github.com/rui-cs/webook/internal/repository/dao"
 )
 
 type HotListCache interface {
 	GetLikeTopN(bizs []string) (map[string][]domain.HotList, error)
+	SaveHotListToCache(biz string, hotList []dao.Interactive) error
 }
 
 type RedisHotListCache struct {
 	client redis.Cmdable
+}
+
+func (r *RedisHotListCache) SaveHotListToCache(biz string, hotList []dao.Interactive) error {
+	zset := make([]redis.Z, len(hotList))
+	for i := range hotList {
+		zset[i] = redis.Z{
+			Score:  float64(hotList[i].LikeCnt),
+			Member: hotList[i].BizId,
+		}
+	}
+
+	if err := r.client.ZAdd(context.Background(), fmt.Sprintf("hotlist:biz:%s:like", biz), zset...).Err(); err != nil {
+		fmt.Println("client.ZAdd error : ", err)
+		return err
+	}
+
+	return nil
 }
 
 func (r *RedisHotListCache) GetLikeTopN(bizs []string) (map[string][]domain.HotList, error) {
@@ -22,8 +42,6 @@ func (r *RedisHotListCache) GetLikeTopN(bizs []string) (map[string][]domain.HotL
 }
 
 func NewHotListCache(client redis.Cmdable) HotListCache {
-	// 启动服务时初始化热榜数据
-
 	return &RedisHotListCache{client: client}
 }
 

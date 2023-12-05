@@ -113,6 +113,7 @@ func InitWebServer() *App {
 		dao.NewUserDAO,
 		articleDao.NewGORMArticleDAO,
 		dao.NewGORMInteractiveDAO,
+		dao.NewHotListDao,
 
 		cache.NewRedisInteractiveCache,
 		cache.NewUserCache,
@@ -125,7 +126,8 @@ func InitWebServer() *App {
 		repository.NewCodeRepository,
 		repository.NewCachedInteractiveRepository,
 		articleRepo.NewArticleRepository,
-		repository.NewHotListRepo,
+		//repository.NewHotListRepo,
+		ioc.InitHotListRepo,
 
 		service.NewUserService,
 		service.NewCodeService,
