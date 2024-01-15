@@ -103,6 +103,7 @@ func InitWebServer() *App {
 		ioc.InitLogger,
 		ioc.InitKafka,
 		ioc.NewConsumers,
+		ioc.InitCache,
 		//ioc.NewSyncProducer,
 
 		// consumer
@@ -116,11 +117,13 @@ func InitWebServer() *App {
 		dao.NewHotListDao,
 
 		cache.NewRedisInteractiveCache,
+		cache.NewInteractiveCacheHotList,
 		cache.NewUserCache,
 		//cache.NewCodeCache,
 		cache.NewRedisCodeCache,
 		cache.NewRedisArticleCache,
-		cache.NewHotListCache,
+		cache.NewRedisHotListCache,
+		cache.NewLocalHotListCache,
 
 		repository.NewUserRepository,
 		repository.NewCodeRepository,

@@ -15,20 +15,27 @@ type HotListRepo interface {
 }
 
 type CachedHotListRepo struct {
-	cache cache.HotListCache
-	dao   dao.HotListDao
+	cache      cache.HotListCache
+	localCache cache.HotListCacheLocal
+	dao        dao.HotListDao
 }
 
-func NewHotListRepo(cache cache.HotListCache, dao dao.HotListDao) HotListRepo {
-	return &CachedHotListRepo{cache: cache, dao: dao}
-}
+//func NewHotListRepo(cache cache.HotListCache, localCache cache.HotListCache, dao dao.HotListDao) HotListRepo {
+//	return &CachedHotListRepo{cache: cache, localCache: localCache, dao: dao}
+//}
 
-func NewCachedHotListRepo(cache cache.HotListCache, dao dao.HotListDao) *CachedHotListRepo {
-	return &CachedHotListRepo{cache: cache, dao: dao}
+func NewCachedHotListRepo(cache cache.HotListCache, localCache cache.HotListCacheLocal, dao dao.HotListDao) *CachedHotListRepo {
+	return &CachedHotListRepo{cache: cache, localCache: localCache, dao: dao}
 }
 
 func (r *CachedHotListRepo) GetLikeTopN(bizs []string) (map[string][]domain.HotList, error) {
-	return r.cache.GetLikeTopN(bizs)
+	res, err := r.cache.GetLikeTopN(bizs)
+	if err == nil {
+		return res, nil
+	}
+
+	// 拿本地缓存中数据
+	return r.localCache.GetLikeTopN(bizs)
 }
 
 func (r *CachedHotListRepo) Preload() {
@@ -46,6 +53,10 @@ func (r *CachedHotListRepo) Preload() {
 		//fmt.Println(hotList)
 		if err := r.cache.SaveHotListToCache(bizs[i], hotList); err != nil {
 			fmt.Println("r.cache.SaveHotListToCache error : ", err)
+		}
+
+		if err := r.localCache.SaveHotListToCache(bizs[i], hotList); err != nil {
+			fmt.Println("r.localCache.SaveHotListToCache error : ", err)
 		}
 	}
 }

@@ -14,6 +14,8 @@ import (
 type HotListCache interface {
 	GetLikeTopN(bizs []string) (map[string][]domain.HotList, error)
 	SaveHotListToCache(biz string, hotList []dao.Interactive) error
+	IncrLikeCntIfPresent(ctx context.Context, biz string, bizId int64) error
+	DecrLikeCntIfPresent(ctx context.Context, biz string, bizId int64) error
 }
 
 type RedisHotListCache struct {
@@ -29,7 +31,13 @@ func (r *RedisHotListCache) SaveHotListToCache(biz string, hotList []dao.Interac
 		}
 	}
 
-	if err := r.client.ZAdd(context.Background(), fmt.Sprintf("hotlist:biz:%s:like", biz), zset...).Err(); err != nil {
+	key := fmt.Sprintf("hotlist:biz:%s:like", biz)
+
+	if err := r.client.Del(context.Background(), key).Err(); err != nil {
+		fmt.Println("client.Del error : ", err)
+	}
+
+	if err := r.client.ZAdd(context.Background(), key, zset...).Err(); err != nil {
 		fmt.Println("client.ZAdd error : ", err)
 		return err
 	}
@@ -41,7 +49,24 @@ func (r *RedisHotListCache) GetLikeTopN(bizs []string) (map[string][]domain.HotL
 	return ParseZsetToHotList(r.client, bizs)
 }
 
-func NewHotListCache(client redis.Cmdable) HotListCache {
+//var (
+//	//go:embed lua/hotlist_incr_cnt_like.lua
+//	luaIncrHotListLikeCnt string
+//)
+
+func (r *RedisHotListCache) IncrLikeCntIfPresent(ctx context.Context, biz string, bizId int64) error {
+	panic("RedisHotListCache.IncrLikeCntIfPresent")
+
+	//return r.client.Eval(ctx, luaIncrLikeCnt,
+	//	[]string{r.key(biz, bizId)},
+	//	fieldLikeCnt, 1, fieldLikeCnt, biz, bizId, 100000).Err()
+}
+
+func (r *RedisHotListCache) DecrLikeCntIfPresent(ctx context.Context, biz string, bizId int64) error {
+	panic("RedisHotListCache.DecrLikeCntIfPresent")
+}
+
+func NewRedisHotListCache(client redis.Cmdable) HotListCache {
 	return &RedisHotListCache{client: client}
 }
 

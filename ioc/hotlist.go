@@ -6,8 +6,8 @@ import (
 	"github.com/rui-cs/webook/internal/repository/dao"
 )
 
-func InitHotListRepo(cache cache.HotListCache, dao dao.HotListDao) repository.HotListRepo {
-	r := repository.NewCachedHotListRepo(cache, dao)
+func InitHotListRepo(cache cache.HotListCache, localCache cache.HotListCacheLocal, dao dao.HotListDao) repository.HotListRepo {
+	r := repository.NewCachedHotListRepo(cache, localCache, dao)
 	r.Preload()
 	r.AddHotListCron()
 

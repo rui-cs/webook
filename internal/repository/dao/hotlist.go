@@ -23,10 +23,12 @@ func (d *GORMHotListDao) GetBizList() ([]string, error) {
 	return bizs, nil
 }
 
+const threshold = 400000
+
 func (d *GORMHotListDao) GetHotListByBiz(biz string) ([]Interactive, error) {
 	//	SELECT biz, biz_id, like_cnt FROM `interactives` where biz = 'article' and like_cnt > 0 ORDER BY like_cnt DESC LIMIT 100
 	var res []Interactive
-	if err := d.db.Model(&Interactive{}).Where("biz = ? and like_cnt > 0", biz).Order("like_cnt DESC").Limit(200).Scan(&res).Error; err != nil {
+	if err := d.db.Model(&Interactive{}).Where("biz = ? and like_cnt >= ?", biz, threshold).Order("like_cnt DESC").Scan(&res).Error; err != nil {
 		return nil, err
 	}
 	return res, nil

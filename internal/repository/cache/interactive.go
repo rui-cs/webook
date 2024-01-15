@@ -14,6 +14,9 @@ import (
 var (
 	//go:embed lua/interative_incr_cnt.lua
 	luaIncrCnt string
+
+	//go:embed lua/interative_incr_cnt_like.lua
+	luaIncrLikeCnt string
 )
 
 const (
@@ -52,6 +55,8 @@ type RedisInteractiveCache struct {
 	expiration time.Duration
 }
 
+type InteractiveCacheRedis InteractiveCache
+
 func (r *RedisInteractiveCache) IncrCollectCntIfPresent(ctx context.Context,
 	biz string, bizId int64) error {
 	return r.client.Eval(ctx, luaIncrCnt, []string{r.key(biz, bizId),
@@ -79,18 +84,27 @@ func (r *RedisInteractiveCache) IncrReadCntIfPresent(ctx context.Context,
 		fieldReadCnt, 1).Err()
 }
 
+const threshold = 400000
+
 func (r *RedisInteractiveCache) IncrLikeCntIfPresent(ctx context.Context,
 	biz string, bizId int64) error {
-	return r.client.Eval(ctx, luaIncrCnt,
+	return r.client.Eval(ctx, luaIncrLikeCnt,
 		[]string{r.key(biz, bizId)},
-		fieldLikeCnt, 1).Err()
+		fieldLikeCnt, 1, fieldLikeCnt, biz, bizId, threshold).Err()
 }
+
+//func (r *RedisInteractiveCache) IncrLikeCntIfPresent(ctx context.Context,
+//	biz string, bizId int64) error {
+//	return r.client.Eval(ctx, luaIncrCnt,
+//		[]string{r.key(biz, bizId)},
+//		fieldLikeCnt, 1).Err()
+//}
 
 func (r *RedisInteractiveCache) DecrLikeCntIfPresent(ctx context.Context,
 	biz string, bizId int64) error {
-	return r.client.Eval(ctx, luaIncrCnt,
+	return r.client.Eval(ctx, luaIncrLikeCnt,
 		[]string{r.key(biz, bizId)},
-		fieldLikeCnt, -1).Err()
+		fieldLikeCnt, -1, fieldLikeCnt, biz, bizId, threshold).Err()
 }
 
 //func (r *RedisInteractiveCache) GetV1(ctx context.Context,
@@ -156,7 +170,7 @@ func (r *RedisInteractiveCache) key(biz string, bizId int64) string {
 //	return fmt.Sprintf("interactive:personal:%s:%d:%d", biz, bizId, uid)
 //}
 
-func NewRedisInteractiveCache(client redis.Cmdable) InteractiveCache {
+func NewRedisInteractiveCache(client redis.Cmdable) InteractiveCacheRedis {
 	return &RedisInteractiveCache{
 		client: client,
 	}

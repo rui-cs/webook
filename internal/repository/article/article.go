@@ -55,15 +55,15 @@ func NewArticleRepository(dao dao.ArticleDAO, l logger.LoggerV1, cache cache.Art
 	}
 }
 
-func (repo *CachedArticleRepository) GetPublishedById(
+func (c *CachedArticleRepository) GetPublishedById(
 	ctx context.Context, id int64) (domain.Article, error) {
 	// 读取线上库数据，如果你的 Content 被你放过去了 OSS 上，你就要让前端去读 Content 字段
-	art, err := repo.dao.GetPubById(ctx, id)
+	art, err := c.dao.GetPubById(ctx, id)
 	if err != nil {
 		return domain.Article{}, err
 	}
 	// 你在这边要组装 user 了，适合单体应用
-	usr, err := repo.userRepo.FindById(ctx, art.AuthorId)
+	usr, err := c.userRepo.FindById(ctx, art.AuthorId)
 	res := domain.Article{
 		Id:      art.Id,
 		Title:   art.Title,
@@ -117,7 +117,7 @@ func (c *CachedArticleRepository) List(ctx context.Context, uid int64, offset in
 	return data, nil
 }
 
-func (repo *CachedArticleRepository) toDomain(art dao.Article) domain.Article {
+func (c *CachedArticleRepository) toDomain(art dao.Article) domain.Article {
 	return domain.Article{
 		Id:      art.Id,
 		Title:   art.Title,
