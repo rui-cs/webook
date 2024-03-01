@@ -1,0 +1,7 @@
+scrape_configs:
+  - job_name: "webook"
+    scrape_interval: 5s
+    scrape_timeout: 3s
+    static_configs:
+#      - 这个是访问我 webook 上的采集数据的端口
+      - targets: ["host.docker.internal:8081"]

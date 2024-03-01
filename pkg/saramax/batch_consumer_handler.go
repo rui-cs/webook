@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rui-cs/webook/pkg/logger"
 )
 
@@ -15,10 +16,23 @@ type BatchHandler[T any] struct {
 	// 用 option 模式来设置这个 batchSize 和 duration
 	batchSize     int
 	batchDuration time.Duration
+
+	vector *prometheus.CounterVec
 }
 
 func NewBatchHandler[T any](l logger.LoggerV1, fn func(msgs []*sarama.ConsumerMessage, ts []T) error) *BatchHandler[T] {
-	return &BatchHandler[T]{l: l, fn: fn, batchDuration: time.Second, batchSize: 10}
+	res := &BatchHandler[T]{l: l, fn: fn, batchDuration: time.Second, batchSize: 10}
+
+	res.vector = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "practice",
+		Subsystem: "webook",
+		Name:      "consumer_batch_topic",
+		Help:      "批量消费主题",
+	},
+		[]string{"topic"})
+	prometheus.MustRegister(res.vector)
+
+	return res
 }
 
 func (b *BatchHandler[T]) Setup(session sarama.ConsumerGroupSession) error {
@@ -72,6 +86,9 @@ func (b *BatchHandler[T]) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			// 你这里整个批次都要记下来
 
 			// 还要继续往前消费
+
+			// prometheus 中记录消费错误次数
+			b.vector.WithLabelValues(msgs[0].Topic).Inc()
 		}
 		for _, msg := range msgs {
 			// 这样，万无一失

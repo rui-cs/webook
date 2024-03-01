@@ -103,11 +103,11 @@ func InitWebServer() *App {
 		ioc.InitLogger,
 		ioc.InitKafka,
 		ioc.NewConsumers,
-		//ioc.NewSyncProducer,
+		ioc.NewSyncProducer,
 
 		// consumer
 		article.NewInteractiveReadEventBatchConsumer,
-		//article.NewKafkaProducer,
+		article.NewKafkaProducer,
 
 		// 初始化 DAO
 		dao.NewUserDAO,
@@ -146,6 +146,7 @@ func InitWebServer() *App {
 
 		ioc.InitWebServer,
 		ioc.InitMiddlewares,
+
 		// 组装我这个结构体的所有字段
 		wire.Struct(new(App), "*"),
 	)

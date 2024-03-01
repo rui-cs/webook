@@ -12,9 +12,11 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rui-cs/webook/config"
 	"github.com/rui-cs/webook/internal/domain"
+	"github.com/rui-cs/webook/internal/errs"
 	"github.com/rui-cs/webook/internal/service"
 	ijwt "github.com/rui-cs/webook/internal/web/jwt"
 	"github.com/rui-cs/webook/pkg/ginx"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -192,11 +194,15 @@ func (u *UserHandler) SignUp(ctx *gin.Context) {
 			return ginx.Result{Msg: "密码格式错误，密码必须大于8位，包含数字、特殊字符"}, nil
 		}
 
-		if err = u.svc.SignUp(ctx, domain.User{
+		if err = u.svc.SignUp(ctx.Request.Context(), domain.User{
 			Email:    req.Email,
 			Password: req.Password,
 		}); err != nil {
 			if errors.Is(err, service.ErrUserDuplicateEmail) {
+				// 这是复用
+				span := trace.SpanFromContext(ctx.Request.Context())
+				span.AddEvent("邮件冲突")
+
 				return ginx.Result{Msg: "邮箱冲突"}, err
 			}
 
@@ -218,7 +224,7 @@ func (u *UserHandler) Login(ctx *gin.Context) {
 	fn := func(ctx *gin.Context, req LoginReq) (ginx.Result, error) {
 		user, err := u.svc.Login(ctx, req.Email, req.Password)
 		if errors.Is(err, service.ErrInvalidUserOrPassword) {
-			return ginx.Result{Msg: err.Error()}, err
+			return ginx.Result{Code: errs.UserInvalidOrPassword, Msg: err.Error()}, err
 		}
 
 		if err != nil {
@@ -248,7 +254,7 @@ func (u *UserHandler) LoginJWT(ctx *gin.Context) {
 	fn := func(ctx *gin.Context, req LoginReq) (ginx.Result, error) {
 		user, err := u.svc.Login(ctx, req.Email, req.Password)
 		if errors.Is(err, service.ErrInvalidUserOrPassword) {
-			return ginx.Result{Msg: err.Error()}, err
+			return ginx.Result{Code: errs.UserInvalidOrPassword, Msg: err.Error()}, err
 		}
 
 		if err != nil {
@@ -423,6 +429,8 @@ func (u *UserHandler) LogoutJWT(ctx *gin.Context) {
 // RefreshToken 可以同时刷新长短 token，用 redis 来记录是否有效，即 refresh_token 是一次性的
 // 参考登录校验部分，比较 User-Agent 来增强安全性
 func (u *UserHandler) RefreshToken(ctx *gin.Context) {
+	ctx.Request.Context()
+
 	// 只有这个接口，拿出来的才是 refresh_token，其它地方都是 access token
 	refreshToken := u.ExtractTokenString(ctx)
 	var rc ijwt.RefreshClaims

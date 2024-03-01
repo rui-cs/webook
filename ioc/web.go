@@ -10,13 +10,17 @@ import (
 	"github.com/gin-contrib/sessions"
 	redisSession "github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"github.com/rui-cs/webook/config"
 	"github.com/rui-cs/webook/internal/web"
 	ijwt "github.com/rui-cs/webook/internal/web/jwt"
 	"github.com/rui-cs/webook/internal/web/middleware"
+	"github.com/rui-cs/webook/pkg/ginx"
 	midLogger "github.com/rui-cs/webook/pkg/ginx/middlewares/logger"
+	"github.com/rui-cs/webook/pkg/ginx/middlewares/metric"
 	"github.com/rui-cs/webook/pkg/logger"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 func InitWebServer(middleHdls []gin.HandlerFunc,
@@ -32,13 +36,37 @@ func InitWebServer(middleHdls []gin.HandlerFunc,
 	userHdl.RegisterRoutes(server)
 	articleHdl.RegisterRoutes(server)
 	oauth2WechatHdl.RegisterRoutes(server)
+	(&web.ObservabilityHandler{}).RegisterRoutes(server)
 
 	return server
 }
 
 func InitMiddlewares(client redis.Cmdable, jwtHdl ijwt.Handler, l logger.LoggerV1) []gin.HandlerFunc {
+	//bd := logger.NewBuilder(func(ctx context.Context, al *logger.AccessLog) {
+	//	l.Debug("HTTP请求", logger2.Field{Key: "al", Value: al})
+	//}).AllowReqBody(true).AllowRespBody()
+	//viper.OnConfigChange(func(in fsnotify.Event) {
+	//	ok := viper.GetBool("web.logreq")
+	//	bd.AllowReqBody(ok)
+	//})
+	ginx.InitCounter(prometheus.CounterOpts{
+		Namespace: "geekbang_daming",
+		Subsystem: "webook",
+		Name:      "http_biz_code",
+		Help:      "HTTP 的业务错误码",
+	})
 	return []gin.HandlerFunc{
 		corsHandler(),
+
+		(&metric.MiddlewareBuilder{
+			Namespace:  "geekbang_daming",
+			Subsystem:  "webook",
+			Name:       "gin_http",
+			Help:       "统计 GIN 的 HTTP 接口",
+			InstanceID: "my-instance-1",
+		}).Build(),
+
+		otelgin.Middleware("webook"),
 
 		midLogger.NewBuilder(func(ctx context.Context, al *midLogger.AccessLog) {
 			l.Debug("HTTP请求", logger.Field{Key: "al", Value: al})

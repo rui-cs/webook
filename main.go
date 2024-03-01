@@ -8,6 +8,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rui-cs/webook/config"
 	"github.com/rui-cs/webook/ioc"
 	"github.com/rui-cs/webook/pkg/ginx"
@@ -21,6 +22,11 @@ func main() {
 	initViperV1()
 
 	initLogger()
+	/*
+		closeFunc := ioc.InitOTEL()
+	*/
+
+	initPrometheus()
 
 	ginx.L = ioc.InitLogger()
 
@@ -42,6 +48,21 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	/*
+		// 一分钟内你要关完，要退出
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			closeFunc(ctx)
+	*/
+
+}
+
+func initPrometheus() {
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		http.ListenAndServe(":8081", nil)
+	}()
 }
 
 func initLogger() {
